@@ -1,6 +1,6 @@
 import ContentHeader from '@patternfly/react-component-groups/dist/esm/ContentHeader';
 import { FormGroup, PageSection, PageSectionVariants, Pagination, Tab, Tabs } from '@patternfly/react-core';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import Messages from '../../Messages';
 import { FormRenderer, UseFieldApiConfig, componentTypes, useFieldApi, useFormApi, validatorTypes } from '@data-driven-forms/react-form-renderer';
@@ -27,6 +27,7 @@ interface Diff {
 
 interface UsersTableProps {
   onChange: (userDiff: Diff) => void;
+  groupId: string;
 }
 
 const PER_PAGE_OPTIONS = [
@@ -37,11 +38,23 @@ const PER_PAGE_OPTIONS = [
   { title: '100', value: 100 },
 ];
 
-const UsersTable: React.FunctionComponent<UsersTableProps> = ({ onChange }) => {
+const UsersTable: React.FunctionComponent<UsersTableProps> = ({ onChange, groupId }) => {
   const dispatch = useDispatch();
   const pagination = useDataViewPagination({ perPage: 20 });
   const { page, perPage, onSetPage, onPerPageSelect } = pagination;
   const initialUserIds = useRef<string[]>([]);
+
+  const selection = useDataViewSelection({
+    matchOption: (a, b) => a.id === b.id,
+  });
+  const { selected, onSelect, isSelected } = selection;
+
+  useEffect(() => {
+    return () => {
+      onSelect(false);
+      initialUserIds.current = [];
+    };
+  }, []);
 
   const { users, groupUsers, totalCount } = useSelector((state: RBACStore) => ({
     users: state.userReducer?.users?.data || [],
@@ -49,15 +62,14 @@ const UsersTable: React.FunctionComponent<UsersTableProps> = ({ onChange }) => {
     totalCount: state.userReducer?.users?.meta?.count,
   }));
 
-  const rows = users.map((user) => ({
-    id: user.username,
-    row: [user.is_org_admin ? 'Yes' : 'No', user.username, user.email, user.first_name, user.last_name, user.is_active ? 'Active' : 'Inactive'],
-  }));
-
-  const selection = useDataViewSelection({
-    matchOption: (a, b) => a.id === b.id,
-  });
-  const { selected, onSelect, isSelected } = selection;
+  const rows = useMemo(
+    () =>
+      users.map((user) => ({
+        id: user.username,
+        row: [user.is_org_admin ? 'Yes' : 'No', user.username, user.email, user.first_name, user.last_name, user.is_active ? 'Active' : 'Inactive'],
+      })),
+    [users, groupId]
+  );
 
   const fetchData = useCallback(
     (apiProps: { count: number; limit: number; offset: number; orderBy: string }) => {
@@ -77,6 +89,8 @@ const UsersTable: React.FunctionComponent<UsersTableProps> = ({ onChange }) => {
   }, [fetchData, page, perPage]);
 
   useEffect(() => {
+    onSelect(false);
+    initialUserIds.current = [];
     const initialSelectedUsers = groupUsers.map((user) => ({ id: user.username }));
     onSelect(true, initialSelectedUsers);
     initialUserIds.current = initialSelectedUsers.map((user) => user.id);
@@ -156,6 +170,13 @@ const ServiceAccountsTable: React.FunctionComponent<ServiceAccountsTableProps> =
   });
   const { onSelect, selected } = selection;
 
+  useEffect(() => {
+    return () => {
+      onSelect(false);
+      initialServiceAccountIds.current = [];
+    };
+  }, []);
+
   const { serviceAccounts, status } = useSelector(reducer);
   const calculateTotalCount = () => {
     if (!serviceAccounts) return 0;
@@ -191,19 +212,25 @@ const ServiceAccountsTable: React.FunctionComponent<ServiceAccountsTableProps> =
   }, [fetchData, page, perPage]);
 
   const processedServiceAccounts = serviceAccounts ? serviceAccounts.slice(0, perPage) : [];
-  const rows = processedServiceAccounts.map((account: ServiceAccount) => ({
-    id: account.uuid,
-    row: [
-      account.name,
-      account.description,
-      account.clientId,
-      account.createdBy,
-      <DateFormat key={`${account.name}-date`} date={account.createdAt} />,
-    ],
-  }));
+  const rows = useMemo(
+    () =>
+      processedServiceAccounts.map((account: ServiceAccount) => ({
+        id: account.uuid,
+        row: [
+          account.name,
+          account.description,
+          account.clientId,
+          account.createdBy,
+          <DateFormat key={`${account.name}-date`} date={account.createdAt} />,
+        ],
+      })),
+    [processedServiceAccounts, groupId]
+  );
 
   useEffect(() => {
     // on mount, select the accounts that are in the current group
+    onSelect(false);
+    initialServiceAccountIds.current = [];
     const initialSelectedServiceAccounts = groupServiceAccounts.map((account) => ({ id: account.clientId }));
     onSelect(true, initialSelectedServiceAccounts);
     initialServiceAccountIds.current = initialSelectedServiceAccounts.map((account) => account.id);
@@ -301,7 +328,7 @@ const EditGroupUsersAndServiceAccounts: React.FunctionComponent<UseFieldApiConfi
       <FormGroup label="Select users and/or service accounts">
         <Tabs activeKey={activeTabKey} onSelect={handleTabSelect}>
           <Tab eventKey={0} title="Users">
-            <UsersTable onChange={handleUserChange} />
+            <UsersTable groupId={groupId} onChange={handleUserChange} />
           </Tab>
           <Tab eventKey={1} title="Service accounts">
             <ServiceAccountsTable groupId={groupId} onChange={handleServiceAccountsChange} />
@@ -322,19 +349,12 @@ const EditUserGroup: React.FunctionComponent = () => {
   const group = useSelector((state: RBACStore) => state.groupReducer?.selectedGroup);
   const allGroups = useSelector((state: RBACStore) => state.groupReducer?.groups?.data || []);
 
-  const fetchCurrentGroup = useCallback(() => {
+  useEffect(() => {
+    dispatch(fetchGroups({ limit: 1000, offset: 0, orderBy: 'name', usesMetaInURL: true }));
     if (groupId) {
       dispatch(fetchGroup(groupId));
     }
-  }, [groupId]);
-
-  useEffect(() => {
-    dispatch(fetchGroups({ limit: 1000, offset: 0, orderBy: 'name', usesMetaInURL: true }));
-  }, [dispatch]);
-
-  useEffect(() => {
-    fetchCurrentGroup();
-  }, [fetchCurrentGroup]);
+  }, [dispatch, groupId]);
 
   const schema = {
     fields: [
