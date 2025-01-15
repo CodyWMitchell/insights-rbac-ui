@@ -6,7 +6,7 @@ import { RBACStore } from '../../redux/store';
 import { fetchUsers } from '../../redux/actions/user-actions';
 import { mappedProps } from '../../helpers/shared/helpers';
 import { BulkSelect, BulkSelectValue, SkeletonTableBody, SkeletonTableHead } from '@patternfly/react-component-groups';
-import { Diff } from './EditUserGroupUsersAndServiceAccounts';
+import { TableState } from './EditUserGroupUsersAndServiceAccounts';
 import { FormattedMessage, useIntl } from 'react-intl';
 import Messages from '../../Messages';
 import { SearchIcon } from '@patternfly/react-icons';
@@ -28,7 +28,7 @@ const EmptyTable: React.FunctionComponent<{ titleText: string }> = ({ titleText 
 };
 
 interface EditGroupUsersTableUsersTableProps {
-  onChange: (userDiff: Diff) => void;
+  onChange: (userDiff: TableState) => void;
   groupId: string;
 }
 
@@ -129,10 +129,7 @@ const EditGroupUsersTable: React.FunctionComponent<EditGroupUsersTableUsersTable
   }, [groupUsers]);
 
   useEffect(() => {
-    const selectedUserIds = selection.selected.map((user) => user.id);
-    const added = selectedUserIds.filter((id) => !initialUserIds.current.includes(id));
-    const removed = initialUserIds.current.filter((id) => !selectedUserIds.includes(id));
-    onChange({ added, removed });
+    onChange({ initial: initialUserIds.current, updated: selection.selected.map((user) => user.id) });
   }, [selection.selected]);
 
   const pageSelected = rows.length > 0 && rows.every(isSelected);

@@ -11,7 +11,7 @@ import { ServiceAccountsState } from '../../redux/reducers/service-account-reduc
 import { LAST_PAGE, ServiceAccount } from '../../helpers/service-account/service-account-helper';
 import { BulkSelect, BulkSelectValue, SkeletonTableBody, SkeletonTableHead } from '@patternfly/react-component-groups';
 import DateFormat from '@redhat-cloud-services/frontend-components/DateFormat';
-import { Diff } from './EditUserGroupUsersAndServiceAccounts';
+import { TableState } from './EditUserGroupUsersAndServiceAccounts';
 import Messages from '../../Messages';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { SearchIcon } from '@patternfly/react-icons';
@@ -34,7 +34,7 @@ const EmptyTable: React.FunctionComponent<{ titleText: string }> = ({ titleText 
 
 interface EditGroupServiceAccountsTableProps {
   groupId?: string;
-  onChange: (serviceAccounts: Diff) => void;
+  onChange: (serviceAccounts: TableState) => void;
 }
 
 const PER_PAGE_OPTIONS = [
@@ -152,10 +152,7 @@ const EditGroupServiceAccountsTable: React.FunctionComponent<EditGroupServiceAcc
   }, [groupServiceAccounts]);
 
   useEffect(() => {
-    const selectedServiceAccountIds = selection.selected.map((account) => account.id);
-    const added = selectedServiceAccountIds.filter((id) => !initialServiceAccountIds.current.includes(id));
-    const removed = initialServiceAccountIds.current.filter((id) => !selectedServiceAccountIds.includes(id));
-    onChange({ added, removed });
+    onChange({ initial: initialServiceAccountIds.current, updated: selection.selected.map((account) => account.id) });
   }, [selection.selected]);
 
   const handleBulkSelect = (value: BulkSelectValue) => {

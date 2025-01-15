@@ -6,9 +6,9 @@ import EditGroupUsersTable from './EditUserGroupUsers';
 import { useIntl } from 'react-intl';
 import Messages from '../../Messages';
 
-export interface Diff {
-  added: string[];
-  removed: string[];
+export interface TableState {
+  initial: string[];
+  updated: string[];
 }
 
 export const EditGroupUsersAndServiceAccounts: React.FunctionComponent<UseFieldApiConfig> = (props) => {
@@ -18,14 +18,14 @@ export const EditGroupUsersAndServiceAccounts: React.FunctionComponent<UseFieldA
   const values = formOptions.getState().values[input.name];
   const intl = useIntl();
 
-  const handleUserChange = (users: Diff) => {
+  const handleUserChange = (users: TableState) => {
     input.onChange({
       users,
       serviceAccounts: values?.serviceAccounts,
     });
   };
 
-  const handleServiceAccountsChange = (serviceAccounts: Diff) => {
+  const handleServiceAccountsChange = (serviceAccounts: TableState) => {
     input.onChange({
       users: values?.users,
       serviceAccounts,

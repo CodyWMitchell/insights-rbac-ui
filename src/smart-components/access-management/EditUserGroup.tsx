@@ -86,40 +86,38 @@ export const EditUserGroup: React.FunctionComponent = () => {
     console.log('submitted values:', values);
     if (values['users-and-service-accounts']) {
       const { users, serviceAccounts } = values['users-and-service-accounts'];
-      if (users.added.length > 0) {
-        console.log(`Users added: ${users.added}`);
+      if (users.updated.length > 0) {
+        const addedUsers = users.updated.filter((user: string) => !users.initial.includes(user));
+        const removedUsers = users.initial.filter((user: string) => !users.updated.includes(user));
+        console.log(`Users added: ${addedUsers} and removed: ${removedUsers}`);
       }
-      if (users.removed.length > 0) {
-        console.log(`Users removed: ${users.removed}`);
-      }
-      if (serviceAccounts.added.length > 0) {
-        console.log(`Service accounts added: ${serviceAccounts.added}`);
-      }
-      if (serviceAccounts.removed.length > 0) {
-        console.log(`Service accounts removed: ${serviceAccounts.removed}`);
+      if (serviceAccounts.updated.length > 0) {
+        const addedServiceAccounts = serviceAccounts.updated.filter((serviceAccount: string) => !serviceAccounts.initial.includes(serviceAccount));
+        const removedServiceAccounts = serviceAccounts.initial.filter((serviceAccount: string) => !serviceAccounts.updated.includes(serviceAccount));
+        console.log(`Service accounts added: ${addedServiceAccounts} and removed: ${removedServiceAccounts}`);
       }
       returnToPreviousPage();
     }
   };
 
-  const initialValues = useMemo(() => {
-    const values = {
-      name: group?.name,
-      description: group?.description,
-      'users-and-service-accounts': {
-        serviceAccounts: {
-          added: [],
-          removed: [],
-        },
-        users: {
-          added: [],
-          removed: [],
-        },
-      },
-    };
-    console.log('initial values:', values);
-    return values;
-  }, [group]);
+  // const initialValues = useMemo(() => {
+  //   const values = {
+  //     name: group?.name,
+  //     description: group?.description,
+  //     'users-and-service-accounts': {
+  //       serviceAccounts: {
+  //         initial: group?.serviceAccounts?.data?.map((serviceAccount) => serviceAccount.uuid) || [],
+  //         updated: [],
+  //       },
+  //       users: {
+  //         initial: group?.members?.data?.map((user) => user.username) || [],
+  //         updated: [],
+  //       },
+  //     },
+  //   };
+  //   console.log('initial values:', values);
+  //   return values;
+  // }, [group]);
 
   return (
     <React.Fragment>
@@ -140,9 +138,9 @@ export const EditUserGroup: React.FunctionComponent = () => {
             onCancel={returnToPreviousPage}
             FormTemplate={FormTemplate}
             FormTemplateProps={{
-              initialValues,
               disableSubmit: ['pristine', 'invalid'],
             }}
+            debug={(values) => {console.log('values:', values)}}
           />
         )}
       </PageSection>
