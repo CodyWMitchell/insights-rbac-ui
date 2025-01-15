@@ -11,6 +11,9 @@ import { fetchGroup, fetchGroups, updateGroup } from '../../redux/actions/group-
 import { RBACStore } from '../../redux/store';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EditGroupUsersAndServiceAccounts } from './EditUserGroupUsersAndServiceAccounts';
+import RbacBreadcrumbs from '../../presentational-components/shared/breadcrumbs';
+import { mergeToBasename } from '../../presentational-components/shared/AppLink';
+import pathnames from '../../utilities/pathnames';
 
 export const EditUserGroup: React.FunctionComponent = () => {
   const intl = useIntl();
@@ -22,6 +25,20 @@ export const EditUserGroup: React.FunctionComponent = () => {
   const group = useSelector((state: RBACStore) => state.groupReducer?.selectedGroup);
   const allGroups = useSelector((state: RBACStore) => state.groupReducer?.groups?.data || []);
   const [isLoading, setIsLoading] = React.useState(true);
+
+  const breadcrumbsList = useMemo(
+    () => [
+      {
+        title: intl.formatMessage(Messages.userGroups),
+        to: mergeToBasename(pathnames['users-and-user-groups'].link),
+      },
+      {
+        title: intl.formatMessage(Messages.usersAndUserGroupsEditUserGroup),
+        isActive: true,
+      },
+    ],
+    [intl]
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -121,6 +138,9 @@ export const EditUserGroup: React.FunctionComponent = () => {
 
   return (
     <React.Fragment>
+      <section className="pf-v5-c-page__main-breadcrumb">
+        <RbacBreadcrumbs {...breadcrumbsList} />
+      </section>
       <ContentHeader title={intl.formatMessage(Messages.usersAndUserGroupsEditUserGroup)} subtitle={''} />
       <PageSection data-ouia-component-id="edit-user-group-form" className="pf-v5-u-m-lg-on-lg" variant={PageSectionVariants.light} isWidthLimited>
         {isLoading ? (
@@ -140,7 +160,9 @@ export const EditUserGroup: React.FunctionComponent = () => {
             FormTemplateProps={{
               disableSubmit: ['pristine', 'invalid'],
             }}
-            debug={(values) => {console.log('values:', values)}}
+            debug={(values) => {
+              console.log('values:', values);
+            }}
           />
         )}
       </PageSection>
