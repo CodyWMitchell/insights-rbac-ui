@@ -1,6 +1,6 @@
 import ContentHeader from '@patternfly/react-component-groups/dist/esm/ContentHeader';
 import { PageSection, PageSectionVariants, Spinner } from '@patternfly/react-core';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import Messages from '../../Messages';
 import { FormRenderer, componentTypes, validatorTypes } from '@data-driven-forms/react-form-renderer';
@@ -22,9 +22,18 @@ export const EditUserGroup: React.FunctionComponent = () => {
   const groupId = params.groupId;
   const navigate = useNavigate();
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [initialFormData, setInitialFormData] = useState<{
+    name?: string;
+    description?: string;
+    users?: string[];
+    serviceAccounts?: string[];
+  } | null>(null);
+
   const group = useSelector((state: RBACStore) => state.groupReducer?.selectedGroup);
   const allGroups = useSelector((state: RBACStore) => state.groupReducer?.groups?.data || []);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const groupUsers = useSelector((state: RBACStore) => state.groupReducer?.selectedGroup?.members?.data || []);
+  const groupServiceAccounts = useSelector((state: RBACStore) => state.groupReducer?.selectedGroup?.serviceAccounts?.data || []);
 
   const breadcrumbsList = useMemo(
     () => [
@@ -48,48 +57,72 @@ export const EditUserGroup: React.FunctionComponent = () => {
           groupId ? dispatch(fetchGroup(groupId)) : Promise.resolve(),
         ]);
       } finally {
+        if (group) {
+          setInitialFormData({
+            name: group.name,
+            description: group.description,
+            users: groupUsers.map((user) => user.username),
+            serviceAccounts: groupServiceAccounts.map((sa) => sa.clientId),
+          });
+        }
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [dispatch, groupId]);
+  }, [dispatch, groupId, group?.uuid]);
 
-  const schema = {
-    fields: [
-      {
-        name: 'name',
-        label: intl.formatMessage(Messages.name),
-        component: componentTypes.TEXT_FIELD,
-        validate: [
-          { type: validatorTypes.REQUIRED },
-          (value: string) => {
-            if (value === group?.name) {
-              return undefined;
-            }
+  const schema = useMemo(
+    () => ({
+      fields: [
+        {
+          name: 'name',
+          label: intl.formatMessage(Messages.name),
+          component: componentTypes.TEXT_FIELD,
+          validate: [
+            { type: validatorTypes.REQUIRED },
+            (value: string) => {
+              if (value === initialFormData?.name) {
+                return undefined;
+              }
 
-            const isDuplicate = allGroups.some(
-              (existingGroup) => existingGroup.name.toLowerCase() === value?.toLowerCase() && existingGroup.uuid !== groupId
-            );
+              const isDuplicate = allGroups.some(
+                (existingGroup) => existingGroup.name.toLowerCase() === value?.toLowerCase() && existingGroup.uuid !== groupId
+              );
 
-            return isDuplicate ? intl.formatMessage(Messages.groupNameTakenTitle) : undefined;
+              return isDuplicate ? intl.formatMessage(Messages.groupNameTakenTitle) : undefined;
+            },
+          ],
+          initialValue: initialFormData?.name,
+          isRequired: true,
+        },
+        {
+          name: 'description',
+          label: intl.formatMessage(Messages.description),
+          component: componentTypes.TEXTAREA,
+          initialValue: initialFormData?.description,
+          isRequired: true,
+        },
+        {
+          name: 'users-and-service-accounts',
+          component: 'users-and-service-accounts',
+          groupId: groupId,
+          initialUsers: initialFormData?.users || [],
+          initialServiceAccounts: initialFormData?.serviceAccounts || [],
+          initialValue: {
+            users: {
+              initial: initialFormData?.users || [],
+              updated: initialFormData?.users || [],
+            },
+            serviceAccounts: {
+              initial: initialFormData?.serviceAccounts || [],
+              updated: initialFormData?.serviceAccounts || [],
+            },
           },
-        ],
-        initialValue: group?.name,
-      },
-      {
-        name: 'description',
-        label: intl.formatMessage(Messages.description),
-        component: componentTypes.TEXTAREA,
-        initialValue: group?.description,
-      },
-      {
-        name: 'users-and-service-accounts',
-        component: 'users-and-service-accounts',
-        initializeOnMount: true,
-        groupId: groupId,
-      },
-    ],
-  };
+        },
+      ],
+    }),
+    [initialFormData, allGroups, groupId, intl]
+  );
 
   const returnToPreviousPage = () => {
     navigate(-1);
@@ -98,9 +131,8 @@ export const EditUserGroup: React.FunctionComponent = () => {
   const handleSubmit = async (values: Record<string, any>) => {
     if (values.name !== group?.name || values.description !== group?.description) {
       dispatch(updateGroup({ uuid: groupId, name: values.name, description: values.description }));
-      console.log(`Dispatched update group with name: ${values.name} and description: ${values.description}`);
     }
-    console.log('submitted values:', values);
+
     if (values['users-and-service-accounts']) {
       const { users, serviceAccounts } = values['users-and-service-accounts'];
       if (users.updated.length > 0) {
@@ -117,25 +149,6 @@ export const EditUserGroup: React.FunctionComponent = () => {
     }
   };
 
-  // const initialValues = useMemo(() => {
-  //   const values = {
-  //     name: group?.name,
-  //     description: group?.description,
-  //     'users-and-service-accounts': {
-  //       serviceAccounts: {
-  //         initial: group?.serviceAccounts?.data?.map((serviceAccount) => serviceAccount.uuid) || [],
-  //         updated: [],
-  //       },
-  //       users: {
-  //         initial: group?.members?.data?.map((user) => user.username) || [],
-  //         updated: [],
-  //       },
-  //     },
-  //   };
-  //   console.log('initial values:', values);
-  //   return values;
-  // }, [group]);
-
   return (
     <React.Fragment>
       <section className="pf-v5-c-page__main-breadcrumb">
@@ -143,7 +156,7 @@ export const EditUserGroup: React.FunctionComponent = () => {
       </section>
       <ContentHeader title={intl.formatMessage(Messages.usersAndUserGroupsEditUserGroup)} subtitle={''} />
       <PageSection data-ouia-component-id="edit-user-group-form" className="pf-v5-u-m-lg-on-lg" variant={PageSectionVariants.light} isWidthLimited>
-        {isLoading ? (
+        {isLoading || !initialFormData ? (
           <div style={{ textAlign: 'center' }}>
             <Spinner />
           </div>

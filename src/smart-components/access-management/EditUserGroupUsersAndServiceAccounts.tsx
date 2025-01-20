@@ -1,5 +1,5 @@
 import { FormGroup, Tab, Tabs } from '@patternfly/react-core';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UseFieldApiConfig, useFieldApi, useFormApi } from '@data-driven-forms/react-form-renderer';
 import EditGroupServiceAccountsTable from './EditUserGroupServiceAccounts';
 import EditGroupUsersTable from './EditUserGroupUsers';
@@ -11,23 +11,47 @@ export interface TableState {
   updated: string[];
 }
 
-export const EditGroupUsersAndServiceAccounts: React.FunctionComponent<UseFieldApiConfig> = (props) => {
+interface ExtendedUseFieldApiConfig extends UseFieldApiConfig {
+  initialUsers?: string[];
+  initialServiceAccounts?: string[];
+}
+
+export const EditGroupUsersAndServiceAccounts: React.FunctionComponent<ExtendedUseFieldApiConfig> = (props) => {
   const [activeTabKey, setActiveTabKey] = useState(0);
   const formOptions = useFormApi();
-  const { input, groupId } = useFieldApi(props);
-  const values = formOptions.getState().values[input.name];
+  const { input, groupId, initialUsers = [], initialServiceAccounts = [] } = useFieldApi(props);
   const intl = useIntl();
 
+  // Initialize form values once when the component mounts
+  useEffect(() => {
+    const initialState = {
+      users: {
+        initial: initialUsers,
+        updated: initialUsers,
+      },
+      serviceAccounts: {
+        initial: initialServiceAccounts,
+        updated: initialServiceAccounts,
+      },
+    };
+
+    if (!formOptions.getState().values[input.name]) {
+      input.onChange(initialState);
+    }
+  }, [initialUsers, initialServiceAccounts]);
+
   const handleUserChange = (users: TableState) => {
+    const currentValue = formOptions.getState().values[input.name] || {};
     input.onChange({
+      ...currentValue,
       users,
-      serviceAccounts: values?.serviceAccounts,
     });
   };
 
   const handleServiceAccountsChange = (serviceAccounts: TableState) => {
+    const currentValue = formOptions.getState().values[input.name] || {};
     input.onChange({
-      users: values?.users,
+      ...currentValue,
       serviceAccounts,
     });
   };
@@ -41,13 +65,19 @@ export const EditGroupUsersAndServiceAccounts: React.FunctionComponent<UseFieldA
       <FormGroup label={intl.formatMessage(Messages.selectUsersAndOrServiceAccounts)}>
         <Tabs activeKey={activeTabKey} onSelect={handleTabSelect}>
           <Tab eventKey={0} title={intl.formatMessage(Messages.users)}>
-            <EditGroupUsersTable groupId={groupId} onChange={handleUserChange} />
+            <EditGroupUsersTable groupId={groupId} onChange={handleUserChange} initialUserIds={initialUsers} />
           </Tab>
           <Tab eventKey={1} title={intl.formatMessage(Messages.serviceAccounts)}>
-            <EditGroupServiceAccountsTable groupId={groupId} onChange={handleServiceAccountsChange} />
+            <EditGroupServiceAccountsTable
+              groupId={groupId}
+              onChange={handleServiceAccountsChange}
+              initialServiceAccountIds={initialServiceAccounts}
+            />
           </Tab>
         </Tabs>
       </FormGroup>
     </React.Fragment>
   );
 };
+
+export default EditGroupUsersAndServiceAccounts;

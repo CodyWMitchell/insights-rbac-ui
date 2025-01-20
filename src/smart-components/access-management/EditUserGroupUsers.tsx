@@ -27,9 +27,10 @@ const EmptyTable: React.FunctionComponent<{ titleText: string }> = ({ titleText 
   );
 };
 
-interface EditGroupUsersTableUsersTableProps {
+interface EditGroupUsersTableProps {
   onChange: (userDiff: TableState) => void;
   groupId: string;
+  initialUserIds: string[];
 }
 
 const PER_PAGE_OPTIONS = [
@@ -40,13 +41,12 @@ const PER_PAGE_OPTIONS = [
   { title: '100', value: 100 },
 ];
 
-const EditGroupUsersTable: React.FunctionComponent<EditGroupUsersTableUsersTableProps> = ({ onChange, groupId }) => {
+const EditGroupUsersTable: React.FunctionComponent<EditGroupUsersTableProps> = ({ onChange, groupId, initialUserIds }) => {
   const dispatch = useDispatch();
   const pagination = useDataViewPagination({ perPage: 20 });
   const { page, perPage, onSetPage, onPerPageSelect } = pagination;
-  const initialUserIds = useRef<string[]>([]);
-  const intl = useIntl();
   const [activeState, setActiveState] = useState<DataViewState | undefined>(DataViewState.loading);
+  const intl = useIntl();
 
   const columns = useMemo(
     () => [
@@ -66,11 +66,10 @@ const EditGroupUsersTable: React.FunctionComponent<EditGroupUsersTableUsersTable
   const { selected, onSelect, isSelected } = selection;
 
   useEffect(() => {
-    return () => {
-      onSelect(false);
-      initialUserIds.current = [];
-    };
-  }, []);
+    onSelect(false);
+    const initialSelectedUsers = initialUserIds.map((id) => ({ id }));
+    onSelect(true, initialSelectedUsers);
+  }, [initialUserIds]);
 
   const { users, groupUsers, totalCount, isLoading } = useSelector((state: RBACStore) => ({
     users: state.userReducer?.users?.data || [],
@@ -121,16 +120,8 @@ const EditGroupUsersTable: React.FunctionComponent<EditGroupUsersTableUsersTable
   }, [fetchData, page, perPage]);
 
   useEffect(() => {
-    onSelect(false);
-    initialUserIds.current = [];
-    const initialSelectedUsers = groupUsers.map((user) => ({ id: user.username }));
-    onSelect(true, initialSelectedUsers);
-    initialUserIds.current = initialSelectedUsers.map((user) => user.id);
-  }, [groupUsers]);
-
-  useEffect(() => {
-    onChange({ initial: initialUserIds.current, updated: selection.selected.map((user) => user.id) });
-  }, [selection.selected]);
+    onChange({ initial: initialUserIds, updated: selection.selected.map((user) => user.id) });
+  }, [selection.selected, initialUserIds]);
 
   const pageSelected = rows.length > 0 && rows.every(isSelected);
   const pagePartiallySelected = !pageSelected && rows.some(isSelected);

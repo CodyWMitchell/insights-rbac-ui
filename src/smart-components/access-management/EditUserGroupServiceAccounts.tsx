@@ -35,6 +35,7 @@ const EmptyTable: React.FunctionComponent<{ titleText: string }> = ({ titleText 
 interface EditGroupServiceAccountsTableProps {
   groupId?: string;
   onChange: (serviceAccounts: TableState) => void;
+  initialServiceAccountIds: string[];
 }
 
 const PER_PAGE_OPTIONS = [
@@ -53,12 +54,11 @@ const reducer = ({ serviceAccountReducer }: { serviceAccountReducer: ServiceAcco
   offset: serviceAccountReducer.offset,
 });
 
-const EditGroupServiceAccountsTable: React.FunctionComponent<EditGroupServiceAccountsTableProps> = ({ groupId, onChange }) => {
+const EditGroupServiceAccountsTable: React.FunctionComponent<EditGroupServiceAccountsTableProps> = ({ groupId, onChange, initialServiceAccountIds }) => {
   const dispatch = useDispatch();
   const pagination = useDataViewPagination({ perPage: 20 });
   const { page, perPage, onSetPage, onPerPageSelect } = pagination;
   const { auth, getEnvironmentDetails } = useChrome();
-  const initialServiceAccountIds = useRef<string[]>([]);
   const [activeState, setActiveState] = useState<DataViewState | undefined>(DataViewState.loading);
   const intl = useIntl();
 
@@ -79,11 +79,10 @@ const EditGroupServiceAccountsTable: React.FunctionComponent<EditGroupServiceAcc
   const { onSelect, selected } = selection;
 
   useEffect(() => {
-    return () => {
-      onSelect(false);
-      initialServiceAccountIds.current = [];
-    };
-  }, []);
+    onSelect(false);
+    const initialSelectedServiceAccounts = initialServiceAccountIds.map((id) => ({ id }));
+    onSelect(true, initialSelectedServiceAccounts);
+  }, [initialServiceAccountIds]);
 
   const { serviceAccounts, status, isLoading } = useSelector(reducer);
   const totalCount = useMemo(() => {
@@ -143,17 +142,8 @@ const EditGroupServiceAccountsTable: React.FunctionComponent<EditGroupServiceAcc
   );
 
   useEffect(() => {
-    // on mount, select the accounts that are in the current group
-    onSelect(false);
-    initialServiceAccountIds.current = [];
-    const initialSelectedServiceAccounts = groupServiceAccounts.map((account) => ({ id: account.clientId }));
-    onSelect(true, initialSelectedServiceAccounts);
-    initialServiceAccountIds.current = initialSelectedServiceAccounts.map((account) => account.id);
-  }, [groupServiceAccounts]);
-
-  useEffect(() => {
-    onChange({ initial: initialServiceAccountIds.current, updated: selection.selected.map((account) => account.id) });
-  }, [selection.selected]);
+    onChange({ initial: initialServiceAccountIds, updated: selection.selected.map((user) => user.id) });
+  }, [selection.selected, initialServiceAccountIds]);
 
   const handleBulkSelect = (value: BulkSelectValue) => {
     if (value === BulkSelectValue.none) {
