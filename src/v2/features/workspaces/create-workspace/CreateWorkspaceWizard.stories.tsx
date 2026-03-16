@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import React, { useState } from 'react';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
+import { delay } from 'msw';
+import { clearAndType } from '../../../../test-utils/interactionHelpers';
 import { CreateWorkspaceWizard } from './CreateWorkspaceWizard';
 import { MemoryRouter } from 'react-router-dom';
 import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
-import { delay } from 'msw';
 import { workspacesHandlers, workspacesLoadingHandlers } from '../../../data/mocks/workspaces.handlers';
 
 // Mock workspace data for factory (WorkspacesWorkspace format)
@@ -121,36 +122,32 @@ export const Default: Story = {
       handlers: [...workspacesHandlers(mockWorkspaces, { onCreate: createWorkspaceSpy })],
     },
   },
-  play: async ({ canvasElement }) => {
-    await delay(300);
+  play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await expect(openButton).toBeInTheDocument();
-    await user.click(openButton);
+    await step('Open wizard and verify details step', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await expect(openButton).toBeInTheDocument();
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body (modals render outside canvas)
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      const body = within(document.body);
+      await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
 
-    // Verify we're on the details step - use getAllByText since there are multiple "Workspace details"
-    const workspaceDetailsElements = await body.findAllByText('Workspace details');
-    await expect(workspaceDetailsElements.length).toBeGreaterThanOrEqual(1);
+      const workspaceDetailsElements = await body.findAllByText('Workspace details');
+      await expect(workspaceDetailsElements.length).toBeGreaterThanOrEqual(1);
 
-    // Verify form fields are present - use more specific selectors
-    const nameField = await body.findByRole('textbox', { name: /workspace name/i });
-    await expect(nameField).toBeInTheDocument();
+      const nameField = await body.findByRole('textbox', { name: /workspace name/i });
+      await expect(nameField).toBeInTheDocument();
 
-    const descriptionField = await body.findByRole('textbox', { name: /workspace description/i });
-    await expect(descriptionField).toBeInTheDocument();
+      const descriptionField = await body.findByRole('textbox', { name: /workspace description/i });
+      await expect(descriptionField).toBeInTheDocument();
 
-    // Verify wizard navigation buttons are present
-    const nextButton = body.queryByRole('button', { name: /next/i });
-    const cancelButton = body.queryByRole('button', { name: /cancel/i });
+      const nextButton = body.queryByRole('button', { name: /next/i });
+      const cancelButton = body.queryByRole('button', { name: /cancel/i });
 
-    await expect(nextButton || cancelButton).toBeTruthy();
+      await expect(nextButton || cancelButton).toBeTruthy();
+    });
   },
 };
 
@@ -175,27 +172,23 @@ export const WithBillingFeatures: Story = {
       handlers: [...workspacesHandlers(mockWorkspaces, { onCreate: createWorkspaceSpy })],
     },
   },
-  play: async ({ canvasElement }) => {
-    await delay(300);
+  play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await user.click(openButton);
+    await step('Open wizard and verify details with billing', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      const body = within(document.body);
+      await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
 
-    // Verify we're on the details step - use getAllByText since there are multiple "Workspace details"
-    const workspaceDetailsElements = await body.findAllByText('Workspace details');
-    await expect(workspaceDetailsElements.length).toBeGreaterThanOrEqual(1);
+      const workspaceDetailsElements = await body.findAllByText('Workspace details');
+      await expect(workspaceDetailsElements.length).toBeGreaterThanOrEqual(1);
 
-    // With billing features enabled, verify the wizard structure is different
-    // (Additional steps would be available in navigation)
-    const nameField = await body.findByRole('textbox', { name: /workspace name/i });
-    await expect(nameField).toBeInTheDocument();
+      const nameField = await body.findByRole('textbox', { name: /workspace name/i });
+      await expect(nameField).toBeInTheDocument();
+    });
   },
 };
 
@@ -219,25 +212,22 @@ export const LoadingWorkspaces: Story = {
       handlers: [...workspacesLoadingHandlers()],
     },
   },
-  play: async ({ canvasElement }) => {
-    await delay(300);
+  play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await user.click(openButton);
+    await step('Open wizard and verify loading state', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      const body = within(document.body);
+      await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
 
-    // Look for loading indicators in the wizard
-    const loadingElements = body.queryAllByText(/loading/i);
-    const skeletons = document.body.querySelectorAll('.pf-c-skeleton, .pf-v6-c-skeleton');
+      const loadingElements = body.queryAllByText(/loading/i);
+      const skeletons = document.body.querySelectorAll('.pf-c-skeleton, .pf-v6-c-skeleton');
 
-    // Either loading text or skeleton elements should be present
-    await expect(loadingElements.length > 0 || skeletons.length > 0).toBe(true);
+      await expect(loadingElements.length > 0 || skeletons.length > 0).toBe(true);
+    });
   },
 };
 
@@ -261,27 +251,24 @@ export const CancelOperation: Story = {
       handlers: [...workspacesHandlers(mockWorkspaces)],
     },
   },
-  play: async ({ canvasElement, args }) => {
-    await delay(300);
+  play: async ({ canvasElement, args, step }) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await user.click(openButton);
+    await step('Open wizard and cancel', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      const body = within(document.body);
+      await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
 
-    // Find and click cancel button
-    const cancelButton = await body.findByRole('button', { name: /cancel/i });
-    await expect(cancelButton).toBeInTheDocument();
+      const cancelButton = await body.findByRole('button', { name: /cancel/i });
+      await expect(cancelButton).toBeInTheDocument();
 
-    await user.click(cancelButton);
+      await user.click(cancelButton);
 
-    // Verify callback was called (the modal should close)
-    await expect(args.onCancel).toHaveBeenCalled();
+      await expect(args.onCancel).toHaveBeenCalled();
+    });
   },
 };
 
@@ -293,7 +280,8 @@ export const FormValidation: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Tests form validation behavior. Demonstrates required field validation and wizard step progression rules.',
+        story:
+          'Tests form validation behavior. Verifies the wizard blocks advancement when no parent workspace is selected, even if the workspace name is filled.',
       },
     },
     featureFlags: {
@@ -305,31 +293,26 @@ export const FormValidation: Story = {
       handlers: [...workspacesHandlers(mockWorkspaces)],
     },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, step }) => {
     await delay(300);
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await user.click(openButton);
+    await step('Open wizard and fill only workspace name', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      const body = within(document.body);
+      await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
 
-    // Verify required field validation
-    const nameField = await body.findByRole('textbox', { name: /workspace name/i });
-    await expect(nameField).toBeInTheDocument();
-    await expect(nameField).toHaveAttribute('required');
+      await clearAndType(user, () => body.getByRole('textbox', { name: /workspace name/i }), 'My New Workspace');
+    });
 
-    // Check if Next button is disabled initially (depends on validation state)
-    const nextButton = body.queryByRole('button', { name: /next/i });
-    if (nextButton) {
-      // If Next button exists, it should be disabled until required fields are filled
-      // This depends on the actual form validation implementation
-      await expect(nextButton).toBeInTheDocument();
-    }
+    await step('Verify Next is disabled without parent workspace', async () => {
+      const body = within(document.body);
+      const nextButton = await body.findByRole('button', { name: /next/i });
+      await expect(nextButton).toBeDisabled();
+    });
   },
 };
 
@@ -353,55 +336,33 @@ export const CancelNotification: Story = {
       handlers: [...workspacesHandlers(mockWorkspaces)],
     },
   },
-  play: async ({ canvasElement, args }) => {
-    await delay(300);
+  play: async ({ canvasElement, args, step }) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
 
-    // Click button to open wizard modal
-    const openButton = await canvas.findByTestId('open-wizard-button');
-    await user.click(openButton);
+    await step('Open wizard, cancel, and verify callback', async () => {
+      const openButton = await canvas.findByTestId('open-wizard-button');
+      await user.click(openButton);
 
-    // Wait for wizard modal in document.body
-    const body = within(document.body);
-    await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
-
-    // Find and click cancel button
-    const cancelButton = body.queryByRole('button', { name: /^cancel$/i });
-    if (cancelButton) {
-      await user.click(cancelButton);
-
-      // Verify onCancel callback was triggered
-      await expect(args.onCancel).toHaveBeenCalled();
-
-      // ✅ TEST NOTIFICATION: Try to verify warning notification appears in DOM
-      // Note: In this modal context, the notification might not appear immediately
-      try {
-        await waitFor(
-          () => {
-            const notificationPortal = document.querySelector('.notifications-portal');
-            if (notificationPortal) {
-              const warningAlert = notificationPortal.querySelector('.pf-v6-c-alert.pf-m-warning');
-              if (warningAlert) {
-                const alertTitle = warningAlert.querySelector('.pf-v6-c-alert__title');
-                const alertDescription = warningAlert.querySelector('.pf-v6-c-alert__description');
-                expect(warningAlert).toBeInTheDocument();
-                if (alertTitle) expect(alertTitle).toHaveTextContent(/create.*workspace/i);
-                if (alertDescription) expect(alertDescription).toHaveTextContent(/cancel/i);
-              }
-            }
-            return true; // Always pass to avoid timeout
-          },
-          { timeout: 2000 }, // Shorter timeout
-        );
-      } catch (error) {
-        // If notification test fails, that's okay - we verified the callback was called
-        // which means the notification dispatch code was executed
-        console.log('SB: Notification test skipped - callback was verified:', error);
-      }
-    } else {
-      // If no cancel button found, just verify the wizard opened
+      const body = within(document.body);
       await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
-    }
+
+      const cancelButton = body.queryByRole('button', { name: /^cancel$/i });
+      if (cancelButton) {
+        await user.click(cancelButton);
+
+        await expect(args.onCancel).toHaveBeenCalled();
+
+        const notificationPortal = document.querySelector('.notifications-portal');
+        if (notificationPortal) {
+          const warningAlert = notificationPortal.querySelector('.pf-v6-c-alert.pf-m-warning');
+          if (warningAlert) {
+            expect(warningAlert).toBeInTheDocument();
+          }
+        }
+      } else {
+        await expect(body.findByText('Create new workspace')).resolves.toBeInTheDocument();
+      }
+    });
   },
 };

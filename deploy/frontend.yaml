@@ -96,7 +96,7 @@ objects:
               product: Identity & Access Management
             - id: my-access
               title: My Access
-              href: /iam/my-user-access
+              href: /iam/my-access
               permissions:
                 - method: featureFlag
                   args:
@@ -211,7 +211,7 @@ objects:
                     - platform.rbac.workspaces-organization-management
                     - false
               routes:
-                - id: overview
+                - id: user-access-overview
                   title: Overview
                   href: /iam/user-access/overview
                   permissions:

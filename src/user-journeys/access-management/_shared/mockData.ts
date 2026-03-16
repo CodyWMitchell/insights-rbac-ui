@@ -272,7 +272,7 @@ export const mockRolesV2 = [
     uuid: 'role-tenant-admin',
     name: 'Tenant admin',
     description: 'Full administrative access',
-    org_id: null as string | null,
+    org_id: undefined,
     permissions: 5,
     workspaces: 1,
     userGroups: 1,
@@ -282,7 +282,7 @@ export const mockRolesV2 = [
     uuid: 'role-workspace-admin',
     name: 'Workspace admin',
     description: 'Workspace administrative access',
-    org_id: null as string | null,
+    org_id: undefined,
     permissions: 4,
     workspaces: 1,
     userGroups: 1,
@@ -302,7 +302,7 @@ export const mockRolesV2 = [
     uuid: 'role-cost-mgmt',
     name: 'Cost mgmt role',
     description: 'Cost management access',
-    org_id: null as string | null,
+    org_id: undefined,
     permissions: null, // "Not available" in UI
     workspaces: null,
     userGroups: null,
@@ -354,7 +354,7 @@ export const roleUserGroups: Record<string, string[]> = {
 };
 
 // =============================================================================
-// ROLE BINDINGS - V2 API GUESSED DATA (gap:guessed-v2-api)
+// ROLE BINDINGS - V2 API DATA
 // Maps roles to their workspace assignments
 // This is educated guessing for V2 role bindings API
 // =============================================================================
