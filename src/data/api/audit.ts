@@ -1,7 +1,7 @@
 import { APIFactory } from '@redhat-cloud-services/javascript-clients-shared';
 import type { AxiosInstance } from 'axios';
 import getAuditlogs from '@redhat-cloud-services/rbac-client/GetAuditlogs';
-import { RBAC_API_BASE, apiClient } from '../../../shared/data/api/client';
+import { RBAC_API_BASE, apiClient } from './client';
 
 const auditEndpoints = {
   getAuditlogs,
@@ -18,13 +18,3 @@ export const auditApi = createAuditApi(apiClient);
 export type { GetAuditlogsParams, GetAuditlogsOrderByEnum } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
 export { GetAuditlogsOrderByEnum as AuditlogsOrderByEnum } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
 export type { AuditLog, AuditLogPagination } from '@redhat-cloud-services/rbac-client/types';
-
-export type {
-  GetAuditlogsResourceTypeEnum,
-  GetAuditlogsActionEnum,
-  GetAuditlogsNameMatchEnum,
-} from '@redhat-cloud-services/rbac-client/GetAuditlogs';
-export {
-  GetAuditlogsResourceTypeEnum as AuditResourceTypeEnum,
-  GetAuditlogsActionEnum as AuditActionEnum,
-} from '@redhat-cloud-services/rbac-client/GetAuditlogs';

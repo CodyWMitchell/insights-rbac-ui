@@ -1,7 +1,7 @@
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { type AuditLogPagination, type GetAuditlogsParams, createAuditApi } from '../api/audit';
-import { useAppServices } from '../../../shared/contexts/ServiceContext';
-import type { QueryOptions } from '../../../shared/data/types';
+import { useAppServices } from '../../contexts/ServiceContext';
+import type { QueryOptions } from './types';
 
 export const auditLogsKeys = {
   all: ['audit-logs'] as const,
@@ -28,5 +28,3 @@ export function useAuditLogsQuery(params: GetAuditlogsParams, options?: QueryOpt
 
 export type { GetAuditlogsParams, AuditLogPagination } from '../api/audit';
 export type { AuditLog } from '../api/audit';
-export type { GetAuditlogsResourceTypeEnum, GetAuditlogsActionEnum } from '../api/audit';
-export { AuditResourceTypeEnum, AuditActionEnum } from '../api/audit';

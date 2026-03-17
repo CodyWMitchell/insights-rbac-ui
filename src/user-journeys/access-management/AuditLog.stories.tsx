@@ -6,14 +6,15 @@
  * - Data loads from API and renders correctly
  * - Page header with title and subtitle
  * - Navigation to audit log via sidebar
+ * - Filter by requester, resource type, and action
  */
 
 import type { StoryObj } from '@storybook/react-webpack5';
 import React from 'react';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { KESSEL_PERMISSIONS, KesselAppEntryWithRouter, createDynamicEnvironment } from '../_shared/components/KesselAppEntryWithRouter';
 import { navigateToPage, resetStoryState } from '../_shared/helpers';
-import { waitForContentReady } from '../../test-utils/interactionHelpers';
+import { clearAndType, waitForContentReady } from '../../test-utils/interactionHelpers';
 import { waitForPageToLoad } from '../../test-utils/tableHelpers';
 import { TEST_TIMEOUTS } from '../../test-utils/testUtils';
 import { v2DefaultHandlers } from './_shared';
@@ -62,6 +63,9 @@ Tests the Audit Log page which displays a read-only table of RBAC audit actions.
 | Date, Requester, Description, Resource, Action columns | ✅ Implemented | V1 |
 | Pagination | ✅ Implemented | V1 |
 | Page header with title and subtitle | ✅ Implemented | — |
+| Filter by requester (text) | ✅ Implemented | V1 |
+| Filter by resource type (select) | ✅ Implemented | V1 |
+| Filter by action (select) | ✅ Implemented | V1 |
         `,
       },
     },
@@ -239,6 +243,126 @@ Tests pagination controls on the Audit Log page.
       const paginationRegions = await canvas.findAllByRole('navigation', { name: /pagination/i });
       expect(paginationRegions.length).toBeGreaterThan(0);
       expect(paginationRegions[0]).toBeInTheDocument();
+    });
+  },
+};
+
+/**
+ * Filter by Requester
+ *
+ * Tests the requester text filter on the audit log table.
+ */
+export const FilterByRequester: Story = {
+  name: 'Filter by Requester',
+  parameters: {
+    docs: {
+      description: {
+        story: `
+Tests filtering audit log entries by requester username.
+
+**Expected behavior:**
+1. Type a username in the requester filter
+2. Table updates to show only matching entries
+3. Non-matching entries are hidden
+        `,
+      },
+    },
+  },
+  play: async ({ canvasElement, step, args }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup({ delay: args.typingDelay ?? 30 });
+
+    await step('Reset state', async () => {
+      await resetStoryState();
+    });
+
+    await step('Wait for content to load', async () => {
+      await waitForContentReady(canvasElement);
+    });
+
+    await step('Wait for page to load', async () => {
+      await waitForPageToLoad(canvas, 'adumble');
+    });
+
+    await step('Apply requester filter', async () => {
+      await clearAndType(user, () => canvas.getByPlaceholderText(/filter by requester/i) as HTMLInputElement, 'bbunny');
+      await user.keyboard('{Enter}');
+    });
+
+    await step('Verify filtered results', async () => {
+      await waitFor(
+        () => {
+          const bbunnyEntries = canvas.queryAllByText('bbunny');
+          expect(bbunnyEntries.length).toBeGreaterThan(0);
+        },
+        { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
+      );
+      expect(canvas.queryByText('adumble')).not.toBeInTheDocument();
+      expect(canvas.queryByText('cmorales')).not.toBeInTheDocument();
+    });
+  },
+};
+
+/**
+ * Filter by Resource Type
+ *
+ * Tests the resource type select filter on the audit log table.
+ */
+export const FilterByResource: Story = {
+  name: 'Filter by Resource',
+  parameters: {
+    docs: {
+      description: {
+        story: `
+Tests filtering audit log entries by resource type using the select dropdown.
+
+**Expected behavior:**
+1. Select "Role" from the resource filter dropdown
+2. Table updates to show only role-related entries
+3. Group entries are hidden
+        `,
+      },
+    },
+  },
+  play: async ({ canvasElement, step, args }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup({ delay: args.typingDelay ?? 30 });
+
+    await step('Reset state', async () => {
+      await resetStoryState();
+    });
+
+    await step('Wait for content to load', async () => {
+      await waitForContentReady(canvasElement);
+    });
+
+    await step('Wait for page to load', async () => {
+      await waitForPageToLoad(canvas, 'adumble');
+    });
+
+    await step('Switch to Resource filter and select Role', async () => {
+      const filterDropdown = await canvas.findByText('Requester', { selector: 'button *' }, { timeout: TEST_TIMEOUTS.ELEMENT_WAIT });
+      await user.click(filterDropdown);
+      const resourceOption = await canvas.findByText('Resource', { selector: '[role="menuitem"] *, [role="option"] *' });
+      await user.click(resourceOption);
+
+      const filterSelect = await canvas.findByText('Filter by Resource', { selector: 'button *' }, { timeout: TEST_TIMEOUTS.ELEMENT_WAIT });
+      await user.click(filterSelect);
+      const roleOption = await canvas.findByText('Role', { selector: '[role="option"] *' });
+      await user.click(roleOption);
+    });
+
+    await step('Verify filtered results show only role entries', async () => {
+      await waitFor(
+        () => {
+          const roleCells = canvas.queryAllByText('Role');
+          expect(roleCells.length).toBeGreaterThan(0);
+        },
+        { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
+      );
+      await waitFor(() => {
+        expect(canvas.queryByText('Group')).not.toBeInTheDocument();
+      });
     });
   },
 };

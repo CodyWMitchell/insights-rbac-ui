@@ -1120,6 +1120,36 @@ export default defineMessages({
     description: 'Audit log empty state when filters match no results',
     defaultMessage: 'No audit log entries found',
   },
+  auditLogFilterByRequester: {
+    id: 'auditLogFilterByRequester',
+    description: 'Audit log filter placeholder for requester',
+    defaultMessage: 'Filter by requester',
+  },
+  auditLogResourceLabel: {
+    id: 'auditLogResourceLabel',
+    description: 'Audit log resource filter label',
+    defaultMessage: 'Resource',
+  },
+  auditLogActionLabel: {
+    id: 'auditLogActionLabel',
+    description: 'Audit log action filter label',
+    defaultMessage: 'Action',
+  },
+  userCapitalized: {
+    id: 'userCapitalized',
+    description: 'User singular (capitalized)',
+    defaultMessage: 'User',
+  },
+  add: {
+    id: 'add',
+    description: 'Add label',
+    defaultMessage: 'Add',
+  },
+  create: {
+    id: 'create',
+    description: 'Create label',
+    defaultMessage: 'Create',
+  },
   overviewHeroTitle: {
     id: 'overviewHeroTitle',
     description: 'Overview Hero section title',

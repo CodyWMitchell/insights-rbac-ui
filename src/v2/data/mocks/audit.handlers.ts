@@ -9,6 +9,28 @@ export interface AuditHandlerOptions {
   onList?: (params: URLSearchParams) => void;
 }
 
+function applyAuditFilters(entries: AuditLog[], params: URLSearchParams): AuditLog[] {
+  let filtered = entries;
+
+  const username = params.get('principal_username');
+  if (username) {
+    const lower = username.toLowerCase();
+    filtered = filtered.filter((e) => e.principal_username?.toLowerCase().includes(lower));
+  }
+
+  const resourceTypes = params.getAll('resource_type');
+  if (resourceTypes.length > 0) {
+    filtered = filtered.filter((e) => resourceTypes.includes(e.resource_type ?? ''));
+  }
+
+  const actions = params.getAll('action');
+  if (actions.length > 0) {
+    filtered = filtered.filter((e) => actions.includes(e.action ?? ''));
+  }
+
+  return filtered;
+}
+
 export function auditHandlers(entries: AuditLog[] = defaultAuditLogs, options: AuditHandlerOptions = {}) {
   const networkDelay = options.networkDelay ?? MOCK_DELAY;
 
@@ -21,8 +43,9 @@ export function auditHandlers(entries: AuditLog[] = defaultAuditLogs, options: A
 
       options.onList?.(url.searchParams);
 
-      const paginated = entries.slice(offset, offset + limit);
-      const total = entries.length;
+      const filtered = applyAuditFilters(entries, url.searchParams);
+      const paginated = filtered.slice(offset, offset + limit);
+      const total = filtered.length;
       const baseUrl = '/api/rbac/v1/auditlogs/';
       const lastOffset = Math.floor(Math.max(total - 1, 0) / limit) * limit;
 
