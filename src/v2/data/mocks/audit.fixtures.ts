@@ -36,4 +36,63 @@ export const defaultAuditLogs: AuditLog[] = [
     resource_type: 'role',
     action: 'edit',
   },
+  {
+    created: '2024-02-18T09:30:00Z',
+    principal_username: 'adumble',
+    description: 'Added user bbunny to group DevOps',
+    resource_type: 'user',
+    action: 'add',
+  },
+  {
+    created: '2024-02-18T08:15:00Z',
+    principal_username: 'bbunny',
+    description: 'Created permission rbac:roles:read',
+    resource_type: 'permission',
+    action: 'create',
+  },
+  {
+    created: '2024-02-17T15:00:00Z',
+    principal_username: 'ccarrot',
+    description: 'Deleted user temp-contractor from organization',
+    resource_type: 'user',
+    action: 'delete',
+  },
+  {
+    created: '2024-02-17T12:00:00Z',
+    principal_username: 'ccarrot',
+    description: 'Edited permission cost:reports:write',
+    resource_type: 'permission',
+    action: 'edit',
+  },
+  {
+    created: '2024-02-17T10:30:00Z',
+    principal_username: 'adumble',
+    description: 'Removed permission rbac:groups:delete from role Viewer',
+    resource_type: 'permission',
+    action: 'remove',
+  },
 ];
+
+const RESOURCES = ['group', 'role', 'user', 'permission'] as const;
+const ACTIONS = ['add', 'remove', 'create', 'delete', 'edit'] as const;
+
+/**
+ * 25 audit log entries for pagination tests (2 pages at 20 per page).
+ * First 10 are defaultAuditLogs; 11–25 have unique descriptions "Audit entry N: ..." for assertions.
+ */
+export function buildAuditLogsForPagination(): AuditLog[] {
+  const entries: AuditLog[] = [...defaultAuditLogs];
+  for (let i = defaultAuditLogs.length; i < 25; i++) {
+    const n = i + 1;
+    entries.push({
+      created: `2024-02-${18 - Math.floor(i / 10)}T${10 + (i % 8)}:${(i % 60).toString().padStart(2, '0')}:00Z`,
+      principal_username: i % 2 === 0 ? 'adumble' : 'bbunny',
+      description: `Audit entry ${n}: ${ACTIONS[i % ACTIONS.length]} on ${RESOURCES[i % RESOURCES.length]}`,
+      resource_type: RESOURCES[i % RESOURCES.length],
+      action: ACTIONS[i % ACTIONS.length],
+    });
+  }
+  return entries;
+}
+
+export const auditLogsForPagination = buildAuditLogsForPagination();

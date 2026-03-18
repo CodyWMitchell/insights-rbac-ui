@@ -10,13 +10,13 @@
 
 import type { StoryObj } from '@storybook/react-webpack5';
 import React from 'react';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { KESSEL_PERMISSIONS, KesselAppEntryWithRouter, createDynamicEnvironment } from '../_shared/components/KesselAppEntryWithRouter';
 import { navigateToPage, resetStoryState } from '../_shared/helpers';
-import { waitForContentReady } from '../../test-utils/interactionHelpers';
+import { auditHandlers, auditLogsForPagination, v2DefaultHandlers } from './_shared';
+import { clearAndType, waitForContentReady } from '../../test-utils/interactionHelpers';
 import { waitForPageToLoad } from '../../test-utils/tableHelpers';
 import { TEST_TIMEOUTS } from '../../test-utils/testUtils';
-import { v2DefaultHandlers } from './_shared';
 
 const meta = {
   component: KesselAppEntryWithRouter,
@@ -60,6 +60,7 @@ Tests the Audit Log page which displays a read-only table of RBAC audit actions.
 |---------|--------|-----|
 | Audit log table | ✅ Implemented | V1 |
 | Date, Requester, Description, Resource, Action columns | ✅ Implemented | V1 |
+| Filtering | ✅ Implemented | V1 |
 | Pagination | ✅ Implemented | V1 |
 | Page header with title and subtitle | ✅ Implemented | — |
         `,
@@ -198,20 +199,29 @@ Tests navigating to the Audit Log page from the sidebar.
 /**
  * Pagination
  *
- * Tests pagination controls on the audit log page.
+ * Tests pagination controls on the audit log page: next page updates visible rows.
  */
 export const Pagination: Story = {
   parameters: {
+    msw: {
+      handlers: [
+        ...auditHandlers(auditLogsForPagination),
+        ...v2DefaultHandlers.filter((h) => {
+          const path = h.info?.path?.toString() || '';
+          return !path.includes('auditlogs');
+        }),
+      ],
+    },
     docs: {
       description: {
         story: `
 Tests pagination controls on the Audit Log page.
 
 **Expected behavior:**
-1. Verify audit log page loaded
-2. Find pagination controls (per-page dropdown or next page button)
-3. Change per-page or navigate to next page
-4. Verify the page/display updated
+1. Verify audit log page loaded (25 entries, 20 per page)
+2. Verify first page shows "Audit entry 11:" (row on page 1)
+3. Click next page
+4. Verify second page shows "Audit entry 21:" and page-1 content is no longer visible
         `,
       },
     },
@@ -229,16 +239,138 @@ Tests pagination controls on the Audit Log page.
 
     await step('Verify audit log page loaded', async () => {
       await expect(canvas.findByRole('heading', { name: /audit log/i })).resolves.toBeInTheDocument();
-      const adumbleEntries = await canvas.findAllByText('adumble');
-      expect(adumbleEntries.length).toBeGreaterThan(0);
-    });
-
-    await step('Verify table and pagination', async () => {
       const table = await canvas.findByRole('grid');
       expect(table).toBeInTheDocument();
-      const paginationRegions = await canvas.findAllByRole('navigation', { name: /pagination/i });
-      expect(paginationRegions.length).toBeGreaterThan(0);
-      expect(paginationRegions[0]).toBeInTheDocument();
+    });
+
+    await step('Verify pagination: first page then next page', async () => {
+      await waitFor(() => {
+        expect(canvas.getByText(/Audit entry 11:/)).toBeInTheDocument();
+      });
+      expect(canvasElement.textContent).toMatch(/25/);
+
+      const nextButtons = canvas.getAllByRole('button', { name: /next/i });
+      expect(nextButtons.length).toBeGreaterThan(0);
+      await userEvent.click(nextButtons[0]);
+
+      await waitFor(() => {
+        expect(canvas.getByText(/Audit entry 21:/)).toBeInTheDocument();
+      });
+      expect(canvas.queryByText(/Audit entry 11:/)).not.toBeInTheDocument();
+    });
+  },
+};
+
+/**
+ * Filtering
+ *
+ * Tests that the audit log table filters correctly by Requester (text),
+ * Resource (checkbox), and Action (checkbox), and that Clear all filters restores data.
+ */
+export const FilterByRequesterResourceAndAction: Story = {
+  name: 'Filtering',
+  parameters: {
+    docs: {
+      description: {
+        story: `
+Tests filtering on the Audit Log page.
+
+**Expected behavior:**
+1. Filter by Requester "adumble" → only adumble rows (e.g. "Created role Custom Auditor"); bbunny row not visible
+2. Add Resource "Group" → only Group rows (e.g. "Deleted group Legacy Access")
+3. Add Action "Create" → no results (no entry is adumble + Group + Create); empty state with "Clear all filters"
+4. Click "Clear all filters" → table shows data again
+        `,
+      },
+    },
+  },
+  play: async ({ canvasElement, step, args }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup({ delay: args.typingDelay ?? 30 });
+
+    await step('Reset state', async () => {
+      await resetStoryState();
+    });
+
+    await step('Wait for content to load', async () => {
+      await waitForContentReady(canvasElement);
+    });
+
+    await step('Verify audit log page loaded', async () => {
+      await expect(canvas.findByRole('heading', { name: /audit log/i })).resolves.toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(canvas.getByText(/Removed role Cost Management Viewer from group Finance/i)).toBeInTheDocument();
+        },
+        { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
+      );
+    });
+
+    await step('Filter by Requester "adumble"', async () => {
+      await clearAndType(user, () => canvas.getByPlaceholderText(/filter by requester/i) as HTMLInputElement, 'adumble');
+
+      await waitFor(() => {
+        expect(canvas.getByText(/Created role Custom Auditor/i)).toBeInTheDocument();
+        expect(canvas.queryByText(/Removed role Cost Management Viewer from group Finance/i)).not.toBeInTheDocument();
+      });
+    });
+
+    await step('Add Resource filter "Group"', async () => {
+      const filterContainer = canvasElement.querySelector('[data-ouia-component-id="DataViewFilters"]');
+      expect(filterContainer).toBeTruthy();
+      const filterCanvas = within(filterContainer as HTMLElement);
+      const filterButtons = filterCanvas.getAllByRole('button');
+      expect(filterButtons.length).toBeGreaterThanOrEqual(2);
+      await user.click(filterButtons[0]);
+
+      const resourceOption = await within(document.body).findByRole('menuitem', { name: /^Resource$/i });
+      await user.click(resourceOption);
+
+      const filterButtonsAfter = filterCanvas.getAllByRole('button');
+      await user.click(filterButtonsAfter[1]);
+
+      const groupMenuItem = await within(document.body).findByRole('menuitem', { name: /^Group$/i });
+      const groupCheckbox = within(groupMenuItem).getByRole('checkbox');
+      await user.click(groupCheckbox);
+
+      await waitFor(() => {
+        expect(canvas.getByText(/Deleted group Legacy Access/i)).toBeInTheDocument();
+        expect(canvas.getByText(/Added user ginger-spice to group Platform Users/i)).toBeInTheDocument();
+        expect(canvas.queryByText(/Created role Custom Auditor/i)).not.toBeInTheDocument();
+      });
+    });
+
+    await step('Add Action filter "Create" → no results', async () => {
+      const filterContainer = canvasElement.querySelector('[data-ouia-component-id="DataViewFilters"]');
+      const filterCanvas = within(filterContainer as HTMLElement);
+      const filterButtons = filterCanvas.getAllByRole('button');
+      await user.click(filterButtons[0]);
+
+      const actionOption = await within(document.body).findByRole('menuitem', { name: /^Action$/i });
+      await user.click(actionOption);
+
+      const filterButtonsAfter = filterCanvas.getAllByRole('button');
+      await user.click(filterButtonsAfter[1]);
+
+      const createMenuItem = await within(document.body).findByRole('menuitem', { name: /^Create$/i });
+      const createCheckbox = within(createMenuItem).getByRole('checkbox');
+      await user.click(createCheckbox);
+
+      await waitFor(() => {
+        expect(canvas.getByRole('button', { name: /clear all filters/i })).toBeInTheDocument();
+        expect(canvas.queryByText(/Deleted group Legacy Access/i)).not.toBeInTheDocument();
+        expect(canvas.queryByText(/Added user ginger-spice to group Platform Users/i)).not.toBeInTheDocument();
+        expect(canvas.getByText(/No audit log entries found/i)).toBeInTheDocument();
+      });
+    });
+
+    await step('Clear all filters and verify data restored', async () => {
+      await user.click(canvas.getByRole('button', { name: /clear all filters/i }));
+
+      await waitFor(() => {
+        expect(canvas.getByText(/Created role Custom Auditor/i)).toBeInTheDocument();
+        expect(canvas.getByText(/Removed role Cost Management Viewer from group Finance/i)).toBeInTheDocument();
+      });
     });
   },
 };
