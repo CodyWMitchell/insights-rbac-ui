@@ -46,8 +46,8 @@ export const defaultAuditLogs: AuditLog[] = [
   {
     created: '2024-02-18T08:15:00Z',
     principal_username: 'bbunny',
-    description: 'Created permission rbac:roles:read',
-    resource_type: 'permission',
+    description: 'Created role Security Analyst',
+    resource_type: 'role',
     action: 'create',
   },
   {
@@ -60,20 +60,20 @@ export const defaultAuditLogs: AuditLog[] = [
   {
     created: '2024-02-17T12:00:00Z',
     principal_username: 'ccarrot',
-    description: 'Edited permission cost:reports:write',
-    resource_type: 'permission',
+    description: 'Edited group Compliance Team members',
+    resource_type: 'group',
     action: 'edit',
   },
   {
     created: '2024-02-17T10:30:00Z',
     principal_username: 'adumble',
-    description: 'Removed permission rbac:groups:delete from role Viewer',
-    resource_type: 'permission',
+    description: 'Removed user jsmith from group Viewers',
+    resource_type: 'user',
     action: 'remove',
   },
 ];
 
-const RESOURCES = ['group', 'role', 'user', 'permission'] as const;
+const RESOURCES = ['group', 'role', 'user'] as const;
 const ACTIONS = ['add', 'remove', 'create', 'delete', 'edit'] as const;
 
 /**
@@ -84,8 +84,11 @@ export function buildAuditLogsForPagination(): AuditLog[] {
   const entries: AuditLog[] = [...defaultAuditLogs];
   for (let i = defaultAuditLogs.length; i < 25; i++) {
     const n = i + 1;
+    const offset = i - defaultAuditLogs.length;
+    const day = 16 - Math.floor(offset / 12);
+    const hour = 23 - (offset % 12);
     entries.push({
-      created: `2024-02-${18 - Math.floor(i / 10)}T${10 + (i % 8)}:${(i % 60).toString().padStart(2, '0')}:00Z`,
+      created: `2024-02-${day}T${String(hour).padStart(2, '0')}:00:00Z`,
       principal_username: i % 2 === 0 ? 'adumble' : 'bbunny',
       description: `Audit entry ${n}: ${ACTIONS[i % ACTIONS.length]} on ${RESOURCES[i % RESOURCES.length]}`,
       resource_type: RESOURCES[i % RESOURCES.length],

@@ -6,10 +6,18 @@ import { DateFormat } from '@redhat-cloud-services/frontend-components/DateForma
 import { TableView, useTableState } from '../../../shared/components/table-view';
 import { DefaultEmptyStateNoData, DefaultEmptyStateNoResults } from '../../../shared/components/table-view/components/TableViewEmptyState';
 import type { CellRendererMap, ColumnConfigMap, FilterConfig } from '../../../shared/components/table-view/types';
-import { type GetAuditlogsActionEnum, type GetAuditlogsResourceTypeEnum, useAuditLogsQuery } from '../../data/queries/audit';
+import { GetAuditlogsActionEnum as ActionEnum, GetAuditlogsResourceTypeEnum as ResourceTypeEnum, useAuditLogsQuery } from '../../data/queries/audit';
 import type { AuditLog as ApiAuditLog } from '../../data/queries/audit';
 import { getDateFormat } from '../../../shared/helpers/stringUtilities';
 import messages from '../../../Messages';
+
+const VALID_RESOURCE_TYPES = new Set<string>(Object.values(ResourceTypeEnum));
+const VALID_ACTIONS = new Set<string>(Object.values(ActionEnum));
+
+function filterValidEnumValues<T extends string>(values: string[], validSet: Set<string>): T[] | undefined {
+  const filtered = values.filter((v) => validSet.has(v)) as T[];
+  return filtered.length > 0 ? filtered : undefined;
+}
 
 export type { AuditLogEntry } from './AuditLogTable';
 
@@ -57,10 +65,11 @@ export const AuditLog: React.FC = () => {
     return {
       limit,
       offset,
+      orderBy: '-created' as const,
       principalUsername: requester || undefined,
       nameMatch: requester ? ('partial' as const) : undefined,
-      resourceType: resource.length > 0 ? (resource as GetAuditlogsResourceTypeEnum[]) : undefined,
-      action: action.length > 0 ? (action as GetAuditlogsActionEnum[]) : undefined,
+      resourceType: filterValidEnumValues<ResourceTypeEnum>(resource, VALID_RESOURCE_TYPES),
+      action: filterValidEnumValues<ActionEnum>(action, VALID_ACTIONS),
     };
   }, [tableState.apiParams]);
 

@@ -211,6 +211,50 @@ export async function waitForModalClose(options?: { timeout?: number }): Promise
 }
 
 /**
+ * Switch the active filter column in a DataView toolbar.
+ *
+ * The DataViewFilters attribute selector toggle displays the name of the
+ * currently active filter column. This helper clicks it, selects the target
+ * column from the dropdown, then returns.
+ *
+ * @param currentColumn - accessible name on the attribute toggle (the active filter label)
+ * @param targetColumn  - menu item label to switch to
+ */
+export async function switchFilterColumn(
+  user: UserEvent,
+  scope: ScopedQueries,
+  currentColumn: string | RegExp,
+  targetColumn: string | RegExp,
+): Promise<void> {
+  const toggle = await scope.findByRole('button', { name: currentColumn });
+  await user.click(toggle);
+  const item = await body().findByRole('menuitem', { name: targetColumn });
+  await user.click(item);
+}
+
+/**
+ * Toggle a checkbox option in the currently visible DataViewCheckboxFilter.
+ *
+ * Finds the filter's MenuToggle by its placeholder/title text, opens the
+ * dropdown, then clicks the checkbox next to the matching option.
+ *
+ * @param toggleName - accessible name on the checkbox filter toggle (usually the placeholder)
+ * @param optionName - menu item label whose checkbox to toggle
+ */
+export async function toggleCheckboxFilterOption(
+  user: UserEvent,
+  scope: ScopedQueries,
+  toggleName: string | RegExp,
+  optionName: string | RegExp,
+): Promise<void> {
+  const toggle = await scope.findByRole('button', { name: toggleName });
+  await user.click(toggle);
+  const item = await body().findByRole('menuitem', { name: optionName });
+  const checkbox = within(item).getByRole('checkbox');
+  await user.click(checkbox);
+}
+
+/**
  * Wait for all PatternFly skeleton/loading indicators to disappear from the
  * canvas, proving that data has loaded and the real UI has rendered.
  *

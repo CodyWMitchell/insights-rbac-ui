@@ -26,5 +26,6 @@ export function useAuditLogsQuery(params: GetAuditlogsParams, options?: QueryOpt
   );
 }
 
-export type { GetAuditlogsParams, AuditLogPagination, GetAuditlogsResourceTypeEnum, GetAuditlogsActionEnum } from '../api/audit';
+export type { GetAuditlogsParams, AuditLogPagination } from '../api/audit';
+export { GetAuditlogsResourceTypeEnum, GetAuditlogsActionEnum } from '../api/audit';
 export type { AuditLog } from '../api/audit';
