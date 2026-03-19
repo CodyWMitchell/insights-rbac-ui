@@ -2,7 +2,7 @@ import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { expectLoadingVisible, queryPagination } from '../../../test-utils/interactionHelpers';
+import { expectLoadingVisible } from '../../../test-utils/interactionHelpers';
 import { type AuditLogEntry, AuditLogTable } from './AuditLogTable';
 
 // ----------------------------------------------------------------------------
