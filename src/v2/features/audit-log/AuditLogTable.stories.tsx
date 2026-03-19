@@ -195,7 +195,7 @@ export const Pagination: Story = {
     const canvas = within(canvasElement);
     await step('Verify pagination', async () => {
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_1_ENTRY.description))).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description)).toBeInTheDocument();
       });
 
       const nextButtons = canvas.getAllByRole('button', { name: /next/i });
@@ -203,9 +203,9 @@ export const Pagination: Story = {
       await userEvent.click(nextButtons[0]);
 
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_2_ENTRY.description))).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_2_ENTRY.description)).toBeInTheDocument();
       });
-      expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_1_ENTRY.description))).not.toBeInTheDocument();
+      expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description)).not.toBeInTheDocument();
     });
   },
 };

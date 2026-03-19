@@ -133,9 +133,9 @@ Tests the default Audit Log table view.
     });
 
     await step('Verify descriptions render', async () => {
-      await expect(canvas.findByText(new RegExp(ADUMBLE_GROUP_ADD.description!, 'i'))).resolves.toBeInTheDocument();
-      await expect(canvas.findByText(new RegExp(ADUMBLE_ROLE_CREATE.description!, 'i'))).resolves.toBeInTheDocument();
-      await expect(canvas.findByText(new RegExp(ADUMBLE_GROUP_DELETE.description!, 'i'))).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ADUMBLE_GROUP_ADD.description!)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ADUMBLE_ROLE_CREATE.description!)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ADUMBLE_GROUP_DELETE.description!)).resolves.toBeInTheDocument();
     });
 
     await step('Verify resource types render', async () => {
@@ -199,7 +199,7 @@ Tests navigating to the Audit Log page from the sidebar.
       await expect(heading).toBeInTheDocument();
       const adumbleEntries = await canvas.findAllByText(ADUMBLE_GROUP_ADD.principal_username!, {}, { timeout: TEST_TIMEOUTS.ELEMENT_WAIT });
       expect(adumbleEntries.length).toBeGreaterThan(0);
-      await expect(canvas.findByText(new RegExp(ADUMBLE_GROUP_ADD.description!, 'i'))).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ADUMBLE_GROUP_ADD.description!)).resolves.toBeInTheDocument();
     });
   },
 };
@@ -247,7 +247,7 @@ Tests pagination controls on the Audit Log page.
 
     await step('Verify pagination: first page then next page', async () => {
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_1_ENTRY.description!))).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description!)).toBeInTheDocument();
       });
 
       const nextButtons = canvas.getAllByRole('button', { name: /next/i });
@@ -255,9 +255,9 @@ Tests pagination controls on the Audit Log page.
       await userEvent.click(nextButtons[0]);
 
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_2_ENTRY.description!))).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_2_ENTRY.description!)).toBeInTheDocument();
       });
-      expect(canvas.queryByText(new RegExp(PAGINATION_PAGE_1_ENTRY.description!))).not.toBeInTheDocument();
+      expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description!)).not.toBeInTheDocument();
     });
   },
 };
@@ -301,7 +301,7 @@ Tests filtering on the Audit Log page.
       await expect(canvas.findByRole('heading', { name: /audit log/i })).resolves.toBeInTheDocument();
       await waitFor(
         () => {
-          expect(canvas.queryByText(new RegExp(BBUNNY_ROLE_REMOVE.description!, 'i'))).toBeInTheDocument();
+          expect(canvas.queryByText(BBUNNY_ROLE_REMOVE.description!)).toBeInTheDocument();
         },
         { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
       );
@@ -315,8 +315,8 @@ Tests filtering on the Audit Log page.
       );
 
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(ADUMBLE_ROLE_CREATE.description!, 'i'))).toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(BBUNNY_ROLE_REMOVE.description!, 'i'))).not.toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_ROLE_CREATE.description!)).toBeInTheDocument();
+        expect(canvas.queryByText(BBUNNY_ROLE_REMOVE.description!)).not.toBeInTheDocument();
       });
     });
 
@@ -325,9 +325,9 @@ Tests filtering on the Audit Log page.
       await toggleCheckboxFilterOption(user, canvas, /filter by resource/i, /^Group$/i);
 
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(ADUMBLE_GROUP_DELETE.description!, 'i'))).toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(ADUMBLE_GROUP_ADD.description!, 'i'))).toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(ADUMBLE_ROLE_CREATE.description!, 'i'))).not.toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_GROUP_DELETE.description!)).toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_GROUP_ADD.description!)).toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_ROLE_CREATE.description!)).not.toBeInTheDocument();
       });
     });
 
@@ -337,8 +337,8 @@ Tests filtering on the Audit Log page.
 
       await waitFor(() => {
         expect(canvas.queryByRole('button', { name: /clear all filters/i })).toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(ADUMBLE_GROUP_DELETE.description!, 'i'))).not.toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(ADUMBLE_GROUP_ADD.description!, 'i'))).not.toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_GROUP_DELETE.description!)).not.toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_GROUP_ADD.description!)).not.toBeInTheDocument();
         expect(canvas.queryByText(/No audit log entries found/i)).toBeInTheDocument();
       });
     });
@@ -347,8 +347,8 @@ Tests filtering on the Audit Log page.
       await user.click(canvas.getByRole('button', { name: /clear all filters/i }));
 
       await waitFor(() => {
-        expect(canvas.queryByText(new RegExp(ADUMBLE_ROLE_CREATE.description!, 'i'))).toBeInTheDocument();
-        expect(canvas.queryByText(new RegExp(BBUNNY_ROLE_REMOVE.description!, 'i'))).toBeInTheDocument();
+        expect(canvas.queryByText(ADUMBLE_ROLE_CREATE.description!)).toBeInTheDocument();
+        expect(canvas.queryByText(BBUNNY_ROLE_REMOVE.description!)).toBeInTheDocument();
       });
     });
   },
