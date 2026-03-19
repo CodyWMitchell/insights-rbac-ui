@@ -2,6 +2,7 @@ import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expectLoadingVisible, queryPagination } from '../../../test-utils/interactionHelpers';
 import { type AuditLogEntry, AuditLogTable } from './AuditLogTable';
 
 // ----------------------------------------------------------------------------
@@ -139,8 +140,7 @@ export const Loading: Story = {
     await step('Verify loading', async () => {
       await waitFor(
         async () => {
-          const skeletonElements = canvasElement.querySelectorAll('[class*="skeleton"]');
-          await expect(skeletonElements.length).toBeGreaterThan(0);
+          expectLoadingVisible(canvasElement);
         },
         { timeout: 10000 },
       );

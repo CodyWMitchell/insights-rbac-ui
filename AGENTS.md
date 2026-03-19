@@ -15,8 +15,10 @@ React application for Red Hat's Role-Based Access Control system. Built on Patte
 - `src/v2/` cannot import from `src/v1/`
 - **Any file outside `src/v1/` and `src/v2/`** cannot import from either versioned directory. This includes `src/shared/` and prevents rogue paths (e.g. `src/data/`, `src/features/`) from bypassing the boundary. The only exceptions are `src/Iam.tsx` (app shell) and `src/federated-modules/` (module federation entry points that wrap V2 components with providers).
 - New files must go in `src/v1/`, `src/v2/`, or `src/shared/` — never directly under `src/` (except `Iam.tsx` and federated module entry points).
-- V2 RBAC feature islands (roles, groups, workspaces) use Kessel domain hooks for permission checks. Other V2 code may use `useAccessPermissions` for non-RBAC domains. V1 features use `useAccessPermissions` + `useUserData`.
-- `useUserData` lives in `src/shared/hooks/useUserData.ts` and is used by both V1 and V2 for identity flags.
+- V2 RBAC feature islands (roles, groups, workspaces) use Kessel domain hooks for permission checks. V2 route guards use `v2Guard()` / `v2GuardOrgAdmin()` from `src/v2/components/V2PermissionGuard.tsx` (Kessel-backed). V1 features use `useAccessPermissions` + `useUserData` (both in `src/v1/`). Non-RBAC domains (cost-management, inventory) use `useNonRbacPermissions` from shared.
+- `useIdentity` lives in `src/shared/hooks/useIdentity.ts` — Chrome-only identity (orgAdmin, identity, ready). Used by both V1 and V2.
+- `useUserData` lives in `src/v1/hooks/useUserData.ts` (V1-only) — composes `useIdentity` + V1 `useAccessPermissions`.
+- `useAccessPermissions` lives in `src/v1/hooks/useAccessPermissions.ts` (V1-only) — calls `/api/rbac/v1/access/`. V2 code must never import it.
 
 **V1 API ban scope**: Only **roles**, **groups** (eventually), and **role bindings** must use V2 APIs in V2 code. Users, permissions, inventory, cost, and service accounts use V1 APIs via `src/shared/data/` — this is correct, not a violation.
 
@@ -44,9 +46,9 @@ All detailed documentation is in `src/docs/`. Read the relevant doc before writi
 10. `@redhat-cloud-services/rbac-client`, `@redhat-cloud-services/javascript-clients-shared`, and `@redhat-cloud-services/host-inventory-client` are implementation details of the data layer. Only `src/*/data/api/*.ts` files may import from them — enforced by ESLint `no-restricted-imports`. Everyone else imports types through data layer re-exports (e.g., `import type { RoleOut } from '../../data/api/roles'`). The V1 function call signatures are broken — use `(api.method as any)` and `undefined` for optional params — but data types (`RoleOut`, `Principal`, `GroupOut`, etc.) are fine and must be used directly for mocks.
 11. Components use named exports only. Features (route/page containers) may additionally have a default export. Never default-only.
 12. Conventional commits. No git operations unless explicitly requested.
-13. **V1/V2 boundary**: V2 RBAC feature islands (`roles/`, `users-and-user-groups/`, `workspaces/`) use Kessel domain hooks (`useRolesAccess`, `useGroupsAccess`, etc.) — never `useAccessPermissions`. Other V2 code may use `useAccessPermissions` for non-RBAC domains without Kessel equivalents (e.g. cost-management, inventory). Enforced by ESLint rule `rbac-local/no-cross-version-imports`.
+13. **V1/V2 boundary**: `useAccessPermissions` and `useUserData` are V1-only (`src/v1/hooks/`). V2 code uses `useIdentity` (shared) for Chrome identity and Kessel domain hooks (`useRolesAccess`, `useGroupsAccess`, etc.) for RBAC permissions. Non-RBAC permission checks (cost-management, inventory) use `useNonRbacPermissions` (shared). V2 route guards use `v2Guard()` / `v2GuardOrgAdmin()` from `src/v2/components/V2PermissionGuard.tsx`. V1 route guards use `guard()` / `guardOrgAdmin()` from `src/v1/components/PermissionGuard.tsx`. Enforced by ESLint rule `rbac-local/no-cross-version-imports`.
 14. **MSW handler boundary in stories**: V1 stories use only V1 role handlers. V2 stories use only V2 role handlers. Shared APIs (users/principals, groups, permissions) are the exceptions — V2 wraps V1 for these until V2 equivalents ship. If a V2 component accidentally calls a V1 roles endpoint (or vice versa), MSW's `onUnhandledRequest: 'error'` must catch it. User-journey stories use `createV1MockDb` + `createV1Handlers(db)` or `createV2MockDb` + `createV2Handlers(db)` — never a mixed set. Reset state via `db.reset()` in decorators or `resetStoryState(db)` in play functions. Access-management stories use `v1DefaultHandlers` or `v2DefaultHandlers` from `_shared/handlers.ts`.
-15. **No inline MSW handlers in stories.** Stories must not define MSW request handlers (`http.get`, `http.post`, etc.) inline. Import handler factories from `src/{v1,v2,shared}/data/mocks/` instead. Handler factories are typed against the same API types the real code uses, so when `rbac-client` updates, type-safety tests catch mock drift at build time. If a factory doesn't exist yet for your endpoint, create one in the appropriate `data/mocks/` directory — don't add an inline handler.
+15. **No inline MSW handlers in stories.** Stories must not define MSW request handlers (`http.get`, `http.post`, etc.) inline. Import handler factories from `src/{v1,v2,shared}/data/mocks/` instead. Handler factories are typed against the same API types the real code uses, so when `rbac-client` updates, type-safety tests catch mock drift at build time. If a factory doesn't exist yet for your endpoint, create one in the appropriate `data/mocks/` directory — don't add an inline handler. **Lint-enforced**: `import { http } from 'msw'` is banned in feature stories (`src/**/*.stories.tsx` excluding `src/user-journeys/`) via `no-restricted-imports`.
 
     **Factory pattern examples:**
     ```typescript
@@ -83,10 +85,10 @@ All detailed documentation is in `src/docs/`. Read the relevant doc before writi
 16. **No hardcoded mock data strings in stories.** Play functions must reference seed constants (`DEFAULT_USERS[0].username`, `DEFAULT_WORKSPACES[0].name`, etc.) — never hardcode entity names, usernames, or workspace names as string literals. Define descriptive aliases at module scope (e.g. `const FIRST_USER = DEFAULT_USERS[0]`). See `StorybookMandatoryRules.mdx` §11.
 17. **No custom/inline types in MSW handlers.** Handler factories must use types from `src/*/data/api/` (re-exports from `@redhat-cloud-services/rbac-client`). Never define inline `Array<{ role: ...; subject: ... }>` shapes — import `RoleBindingsRoleBinding`, `RoleBindingsGroupSubject`, `Role`, etc. and use casts (`as RoleBindingsGroupSubject`) when the API sparse-field response extends the base type.
 18. **Storybook test commands.** `npm run test:storybook` is the self-contained full-suite command (builds, serves on port 6007, runs all tests, kills the server). Use it for final validation — no running dev server needed. For fast iteration against a running dev server (`npm run storybook`), use `npm run test-storybook:fast -- --includeTags <tag>` to target specific stories. Never run the full suite without `--includeTags` during iteration — it takes 2+ minutes. See `DevelopmentWorkflow.mdx` §test-storybook.
-19. **Play functions must use shared interaction helpers.** Do not inline modal waits, drawer scoping, tab switching, row selection, notification checks, destructive confirmations, or wizard navigation. Import generic helpers from `src/test-utils/` and feature-specific helpers from `*.helpers.tsx` next to the component. If a helper doesn't exist for your pattern, create one in the appropriate location — don't inline the sequence. Banned in play functions: `document.querySelector` / `document.getElementById`, `delay()` (except the initial MSW settle in `resetStoryState`), `dispatchEvent(new MouseEvent(...))` / raw `.click()`, hand-rolled polling loops, sync `getByRole` / `getByText` after any async boundary (use `findBy*`).
+19. **Play functions must use shared interaction helpers.** Do not inline modal waits, drawer scoping, tab switching, row selection, notification checks, destructive confirmations, or wizard navigation. Import generic helpers from `src/test-utils/` and feature-specific helpers from `*.helpers.tsx` next to the component. If a helper doesn't exist for your pattern, create one in the appropriate location — don't inline the sequence. Banned in play functions: `document.querySelector` / `document.getElementById`, `delay()` (except the initial MSW settle in `resetStoryState`), `dispatchEvent(new MouseEvent(...))` / raw `.click()`, hand-rolled polling loops, sync `getByRole` / `getByText` after any async boundary (use `findBy*`). **Lint-enforced** (error): `document.querySelector`, `document.querySelectorAll`, `document.getElementById`, and `delay()` are banned in all `*.stories.tsx` files via `no-restricted-syntax`. **Lint-enforced** (error): `canvasElement.querySelector` / `canvasElement.querySelectorAll` and `getBy*`/`getAllBy*` inside `waitFor` are enforced by `rbac-local/enforce-story-patterns`.
 20. **Test helper ownership.** Generic interaction helpers (`waitForModal`, `clickWizardNext`, `clearAndType`, etc.) and domain helpers (`workspaceHelpers`, `rolesTableHelpers`, `tableHelpers`) live in `src/test-utils/`. Feature-specific form/wizard helpers live as `*.helpers.tsx` next to the component they exercise. User-journey stories consume from both — they never own reusable interaction logic. `src/user-journeys/_shared/helpers/` is limited to journey-only orchestration (`resetStoryState`, `navigateToPage`). Import directly from the owning module — no barrel re-exports.
 21. **User-journey play functions must use `step` for every logical phase.** Destructure `step` from the play function context (`play: async ({ canvasElement, step, args }) => { ... }`) and wrap each phase in `await step('Label', async () => { ... })`. This creates closure boundaries that prevent stale DOM references from leaking between phases. DOM element references (`findByRole` results, `within()` scopes, helper returns like `waitForModal()`) must live inside steps. Stable non-DOM values (`canvas`, `user`, module-scope constants) live outside steps. `waitFor` is still needed inside steps for spy assertions and `findBy*` with `{ timeout: TEST_TIMEOUTS.ELEMENT_WAIT }` for async-rendered content (e.g. data-driven-forms). See `StorybookMandatoryRules.mdx` §13.
-22. **Banned patterns in stories (ESLint-enforced).** Three patterns cause flaky `failOnConsole` failures and are enforced by ESLint: (a) `findBy*` inside `waitFor` (double-retry — use `queryBy*` + `expect` instead) — `testing-library/no-wait-for-side-effects`; (b) `console.log`/`console.warn` in story files (debug noise triggers `failOnConsole`) — `no-console`; (c) try/catch swallowing assertion failures with `console.log(error)` (hides real failures). See `StorybookMandatoryRules.mdx` §15.
+22. **Banned patterns in stories (ESLint-enforced).** Four pattern families are enforced by ESLint: (a) `findBy*` inside `waitFor` (double-retry — use `queryBy*` + `expect` instead) — `testing-library/no-wait-for-side-effects`; (b) `console.log`/`console.warn` in story files (debug noise triggers `failOnConsole`) — `no-console`; (c) try/catch swallowing assertion failures with `console.log(error)` (hides real failures); (d) `getBy*`/`getAllBy*` inside `waitFor` (throws before retry — use `queryBy*` + `expect` or `findBy*` outside) — `rbac-local/warn-story-patterns`. See `StorybookMandatoryRules.mdx` §15.
 23. **Mock data types**: All mock entity types (`Group`, `GroupOut`, `Principal`, `RoleOutDynamic`, `RoleOut`, `RoleV2`, `WorkspacesWorkspace`, `MockServiceAccount`, `ServiceAccount`) are re-exported from `src/shared/data/mocks/db.ts` (shared) or `src/v2/data/mocks/db.ts` (V2). V2 role mocks use `RoleV2` (extends `Role` with `org_id`) from `src/v2/data/queries/roles.ts`. Import types from `db.ts` — never from `*.fixtures.ts` files. Handler factories accept `MockCollection<T>` (alias for `Collection<ZodType<T>>`). Version-specific mock databases: `V1MockDb` (from `src/v1/data/mocks/db.ts`) and `V2MockDb` (from `src/v2/data/mocks/db.ts`) bundle `ResettableMockCollection` + `ResettableMap` instances with a top-level `reset()`. Create with `createV1MockDb(seed)` / `createV2MockDb(seed)`. Wire handlers via `createV1Handlers(db, spies?)` / `createV2Handlers(db, spies?)`.
 
 ---
@@ -139,13 +141,16 @@ src/
 │   │       ├── db.ts                 # V1MockDb, V1Seed, createV1MockDb()
 │   │       ├── seed.ts              # DEFAULT_V1_ROLES, defaultV1Seed()
 │   │       └── handlers.ts          # createV1Handlers(db, spies?) — composes all V1 handler factories
-│   ├── hooks/                        # (empty — useUserData is in shared)
+│   ├── hooks/
+│   │   ├── useAccessPermissions.ts  # V1 Chrome permission checks (/api/rbac/v1/access/)
+│   │   └── useUserData.ts           # V1 identity + userAccessAdministrator (composes useIdentity + useAccessPermissions)
 │   ├── utilities/
 │   │   └── pathnames.ts              # V1-specific URL paths
-│   └── components/                   # V1-only components
+│   └── components/
+│       └── PermissionGuard.tsx       # V1 guard(), guardOrgAdmin() — route-level permission checks
 ├── v2/                               # Access Management (V2)
 │   ├── IamV2.tsx                     # V2 app entry (wraps Kessel Provider)
-│   ├── Routing.tsx                   # V2 routes (declarative JSX, guard() layout routes)
+│   ├── Routing.tsx                   # V2 routes (declarative JSX, v2Guard() layout routes)
 │   ├── features/                     # V2 feature islands
 │   ├── data/
 │   │   ├── api/                      # V2 API clients
@@ -157,18 +162,19 @@ src/
 │   ├── hooks/
 │   │   ├── useRbacAccess.ts          # Kessel domain hooks (useRolesAccess, etc.)
 │   │   └── useOrganizationData.ts    # Org/tenant ID for Kessel checks
+│   ├── components/
+│   │   └── V2PermissionGuard.tsx    # v2Guard(), v2GuardOrgAdmin() — Kessel-backed route guards
 │   └── utilities/
 │       └── pathnames.ts              # V2-specific URL paths
 ├── shared/                           # Code shared between V1 and V2
 │   ├── components/
-│   │   ├── PermissionGuard.tsx       # guard(), guardOrgAdmin() — route-level permission checks
 │   │   └── table-view/
 │   │       ├── TableView.tsx         # Canonical table component
 │   │       ├── hooks/useTableState.ts
 │   │       └── types.ts
 │   ├── hooks/
-│   │   ├── useAccessPermissions.ts  # Chrome-based permission checks (shared by V1/V2 routing)
-│   │   ├── useUserData.ts            # Identity + orgAdmin flags (shared by V1 and V2)
+│   │   ├── useIdentity.ts            # Chrome-only identity (orgAdmin, identity, ready) — shared primitive
+│   │   ├── useNonRbacPermissions.ts  # Non-RBAC domain permissions (cost-management, inventory)
 │   │   ├── usePlatformAuth.ts        # Chrome auth wrapper
 │   │   └── usePlatformEnvironment.ts
 │   ├── utilities/
@@ -193,7 +199,8 @@ src/
 eslint-rules/
 ├── require-use-table-state.js        # Enforce useTableState with TableView
 ├── no-direct-get-user.js             # Ban direct getUser() from usePlatformAuth
-└── no-cross-version-imports.js       # Enforce V1/V2/shared boundaries
+├── no-cross-version-imports.js       # Enforce V1/V2/shared boundaries
+└── enforce-story-patterns.js          # Error: canvasElement.querySelector, getBy* inside waitFor
 
 .storybook/
 ├── preview.tsx                       # Global decorators, MSW setup
