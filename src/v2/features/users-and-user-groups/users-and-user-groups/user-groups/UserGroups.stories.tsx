@@ -3,13 +3,17 @@ import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { BrowserRouter } from 'react-router-dom';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
-import { waitForModal, waitForModalClose } from '../../../../../test-utils/interactionHelpers';
+import messages from '../../../../../Messages';
+import { expectLoadingVisible, getSkeletonCount, waitForDrawer, waitForModal, waitForModalClose } from '../../../../../test-utils/interactionHelpers';
 import { UserGroups } from './UserGroups';
+import { GROUP_ADMIN_DEFAULT, GROUP_SYSTEM_DEFAULT } from '../../../../../shared/data/mocks/seed';
 import { groupsErrorHandlers, groupsHandlers, groupsLoadingHandlers } from '../../../../../shared/data/mocks/groups.handlers';
 import type { GroupOut } from '../../../../../shared/data/mocks/db';
 import { createGroupMembersHandlers, groupMembersHandlers } from '../../../../../shared/data/mocks/groupMembers.handlers';
 import type { Principal } from '../../../../../shared/data/mocks/db';
 import { groupRolesHandlers } from '../../../../../shared/data/mocks/groupRoles.handlers';
+import { createRoleBindingsListHandlers } from '../../../../data/mocks/roleBindings.handlers';
+import type { RoleBinding } from '../../../../data/queries/roleBindings';
 import type { Group } from '../../../../../v2/data/queries/groups';
 import type { MockUserIdentity } from '../../../../../../.storybook/contexts/StorybookMockContext';
 
@@ -135,9 +139,37 @@ const standardGroupRoles: Record<
   '2': [],
   '3': [],
 };
+
+const storyRoleBindings: RoleBinding[] = standardGroupRoles['1'].map((role) => ({
+  role: { id: role.uuid, name: role.name },
+  subject: { id: '1', type: 'group' },
+  resource: { id: 'ws-1', name: 'Production', type: 'workspace' },
+}));
+
 const standardMembers: Record<string, Principal[]> = Object.fromEntries(
   Object.entries(standardMembersRaw).map(([k, v]) => [k, v.map((m) => ({ ...m, external_source_id: m.external_source_id ?? m.username }))]),
 ) as Record<string, Principal[]>;
+
+const ALL_USERS_EMPTY_TITLE = messages.allUsers.defaultMessage;
+const ALL_USERS_EMPTY_BODY = messages.allUsersAreMembers.defaultMessage;
+const ALL_ORG_ADMINS_EMPTY_TITLE = messages.allOrgAdmins.defaultMessage;
+const ALL_ORG_ADMINS_EMPTY_BODY = messages.allOrgAdminsAreMembers.defaultMessage;
+
+const seedGroupToGroupOut = (g: typeof GROUP_SYSTEM_DEFAULT): GroupOut => ({
+  uuid: g.uuid,
+  name: g.name,
+  description: g.description ?? '',
+  principalCount: typeof g.principalCount === 'number' ? g.principalCount : 0,
+  roleCount: g.roleCount ?? 0,
+  created: g.created ?? '',
+  modified: g.modified ?? '',
+  platform_default: g.platform_default ?? false,
+  admin_default: g.admin_default ?? false,
+  system: g.system ?? false,
+});
+
+const defaultAccessOnlyGroupsForHandlers: GroupOut[] = [seedGroupToGroupOut(GROUP_SYSTEM_DEFAULT)];
+const adminDefaultOnlyGroupsForHandlers: GroupOut[] = [seedGroupToGroupOut(GROUP_ADMIN_DEFAULT)];
 
 // Mock group data
 const mockGroups: Group[] = [
@@ -273,6 +305,7 @@ For testing specific scenarios, see these additional stories:
           onAddMembersWithRequest: deleteMembersFromGroupSpy,
         }),
         ...groupRolesHandlers(standardGroupRoles),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
       ],
     },
   },
@@ -300,8 +333,7 @@ For testing specific scenarios, see these additional stories:
         await userEvent.click(adminRow);
 
         // Wait for drawer to open and scope searches to drawer panel
-        const drawerPanel = within(document.body).getByTestId('detail-drawer-panel');
-        const drawer = within(drawerPanel);
+        const drawer = await waitForDrawer();
 
         // Verify drawer title within the drawer scope
         await expect(drawer.findByText(mockGroups[0].name)).resolves.toBeInTheDocument();
@@ -376,7 +408,7 @@ export const LoadingState: StoryObj<typeof meta> = {
       // Should show skeleton loading state
       await waitFor(
         () => {
-          expect(canvasElement.querySelectorAll('[class*="skeleton"]').length).toBeGreaterThan(0);
+          expectLoadingVisible(canvasElement);
         },
         { timeout: 10000 },
       );
@@ -420,7 +452,12 @@ const focusMembers: Record<string, Principal[]> = {
 export const GroupFocusInteraction: StoryObj<typeof meta> = {
   parameters: {
     msw: {
-      handlers: [...groupsHandlers(mockGroupsForHandlers), ...groupMembersHandlers(focusMembers, {}), ...groupRolesHandlers({})],
+      handlers: [
+        ...groupsHandlers(mockGroupsForHandlers),
+        ...groupMembersHandlers(focusMembers, {}),
+        ...groupRolesHandlers({}),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
+      ],
     },
   },
   play: async ({ canvasElement, step }) => {
@@ -448,7 +485,12 @@ export const EditGroupNavigation: StoryObj<typeof meta> = {
   parameters: {
     permissions: ['rbac:group:read', 'rbac:group:write'],
     msw: {
-      handlers: [...groupsHandlers(mockGroupsForHandlers), ...groupMembersHandlers({}, {}), ...groupRolesHandlers({})],
+      handlers: [
+        ...groupsHandlers(mockGroupsForHandlers),
+        ...groupMembersHandlers({}, {}),
+        ...groupRolesHandlers({}),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
+      ],
     },
   },
   play: async ({ canvasElement, step }) => {
@@ -497,6 +539,7 @@ export const DeleteModalIntegration: StoryObj<typeof meta> = {
         ...groupsHandlers(mockGroupsForHandlers, { onList: fetchGroupsSpy, onDelete: deleteGroupsSpy }),
         ...createGroupMembersHandlers({}, {}, { onAddMembersWithRequest: deleteMembersFromGroupSpy }),
         ...groupRolesHandlers({}),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
       ],
     },
   },
@@ -600,7 +643,12 @@ export const SystemGroupProtection: StoryObj<typeof meta> = {
 export const BulkSelectionManagement: StoryObj<typeof meta> = {
   parameters: {
     msw: {
-      handlers: [...groupsHandlers(mockGroupsForHandlers), ...groupMembersHandlers({}, {}), ...groupRolesHandlers({})],
+      handlers: [
+        ...groupsHandlers(mockGroupsForHandlers),
+        ...groupMembersHandlers({}, {}),
+        ...groupRolesHandlers({}),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
+      ],
     },
   },
   play: async ({ canvasElement, step }) => {
@@ -672,12 +720,74 @@ export const ErrorStateHandling: StoryObj<typeof meta> = {
         () => {
           const grid = canvas.queryByRole('grid');
           const emptyStates = canvas.queryAllByText(/no data|no groups|no user group|error|failed/i);
-          const loadingState = canvasElement.querySelector('.pf-v6-c-skeleton');
+          const loadingState = getSkeletonCount(canvasElement) > 0;
           // Either the grid, an empty/error state (could be multiple), or still loading should be present
           expect(grid || emptyStates.length > 0 || loadingState).toBeTruthy();
         },
         { timeout: 5000 },
       );
+    });
+  },
+};
+
+/** Lists only Default access; opening the row shows implicit “All users” membership empty state in the drawer. */
+export const DefaultAccessDrawer: StoryObj<typeof meta> = {
+  parameters: {
+    msw: {
+      handlers: [...groupsHandlers(defaultAccessOnlyGroupsForHandlers), ...createGroupMembersHandlers({}, {}), ...groupRolesHandlers({})],
+    },
+    docs: {
+      description: {
+        story:
+          'User groups table with the platform default group only. The drawer Users tab shows the “All users” empty state; the table shows normalized principal count from `useGroupsQuery`.',
+      },
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    await step('Wait for default access group and normalized user count', async () => {
+      await expect(canvas.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_USERS_EMPTY_TITLE)).resolves.toBeInTheDocument();
+    });
+    await step('Open drawer and verify Users tab empty state', async () => {
+      const nameCell = (await canvas.findAllByText(GROUP_SYSTEM_DEFAULT.name))[0];
+      const row = nameCell.closest('tr');
+      await expect(row).toBeTruthy();
+      await userEvent.click(row!);
+      const drawer = await waitForDrawer();
+      await expect(drawer.findByRole('heading', { name: ALL_USERS_EMPTY_TITLE })).resolves.toBeInTheDocument();
+      await expect(drawer.findByText(ALL_USERS_EMPTY_BODY)).resolves.toBeInTheDocument();
+    });
+  },
+};
+
+/** Lists only Default admin access; drawer shows “All org admins” implicit membership messaging. */
+export const AdminDefaultDrawer: StoryObj<typeof meta> = {
+  parameters: {
+    msw: {
+      handlers: [...groupsHandlers(adminDefaultOnlyGroupsForHandlers), ...createGroupMembersHandlers({}, {}), ...groupRolesHandlers({})],
+    },
+    docs: {
+      description: {
+        story:
+          'User groups table with the admin default group only. The drawer Users tab shows the “All org admins” empty state; the table shows normalized principal count.',
+      },
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    await step('Wait for admin default group and normalized user count', async () => {
+      await expect(canvas.findByText(GROUP_ADMIN_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_ORG_ADMINS_EMPTY_TITLE)).resolves.toBeInTheDocument();
+    });
+    await step('Open drawer and verify Users tab empty state', async () => {
+      const nameCell = (await canvas.findAllByText(GROUP_ADMIN_DEFAULT.name))[0];
+      const row = nameCell.closest('tr');
+      await expect(row).toBeTruthy();
+      await userEvent.click(row!);
+      const drawer = await waitForDrawer();
+      await expect(drawer.findByRole('heading', { name: ALL_ORG_ADMINS_EMPTY_TITLE })).resolves.toBeInTheDocument();
+      await expect(drawer.findByText(ALL_ORG_ADMINS_EMPTY_BODY)).resolves.toBeInTheDocument();
     });
   },
 };

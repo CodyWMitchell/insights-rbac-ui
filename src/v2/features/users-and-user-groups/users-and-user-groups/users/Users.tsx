@@ -1,21 +1,14 @@
 import React, { Suspense, useCallback, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useFlag } from '@unleash/proxy-client-react';
-import { usePlatformEnvironment } from '../../../../../shared/hooks/usePlatformEnvironment';
-import { usePlatformAuth } from '../../../../../shared/hooks/usePlatformAuth';
 import { usePrincipalsAccess } from '../../../../hooks/useRbacAccess';
-import { useOrganizationData } from '../../../../hooks/useOrganizationData';
 import { DataViewEventsProvider, EventTypes, useDataViewEventsContext } from '@patternfly/react-data-view';
 import { TabContent } from '@patternfly/react-core/dist/dynamic/components/Tabs';
 import useAppNavigate from '../../../../../shared/hooks/useAppNavigate';
-import { type User, useChangeUserStatusMutation } from '../../../../../shared/data/queries/users';
-import { useAddNotification } from '@redhat-cloud-services/frontend-components-notifications/hooks';
-import { useIntl } from 'react-intl';
-import messages from '../../../../../Messages';
+import { type User, useChangeUserStatusMutation, useUpdateUserOrgAdminMutation } from '../../../../../shared/data/queries/users';
 import paths from '../../../../utilities/pathnames';
 import { useUsers } from './useUsers';
 import { UsersTable } from './components/UsersTable';
-import { DeleteUserModal } from './components/DeleteUserModal';
 import { BulkDeactivateUsersModal } from './components/BulkDeactivateUsersModal';
 import { AddUserToGroupModal } from './add-user-to-group/AddUserToGroupModal';
 import { RemoveUserFromGroupModal } from './remove-user-from-group/RemoveUserFromGroupModal';
@@ -28,22 +21,18 @@ interface UsersProps {
 }
 
 export const Users: React.FC<UsersProps> = ({ usersRef, defaultPerPage = 20, ouiaId = 'iam-users-table' }) => {
-  const intl = useIntl();
-  const addNotification = useAddNotification();
   const authModel = useFlag('platform.rbac.common-auth-model');
-  const isITLess = useFlag('platform.rbac.itless');
   const appNavigate = useAppNavigate();
 
-  // Use React Query mutation for status changes
+  // Mutations handle auth, environment, and notifications internally
   const changeUserStatusMutation = useChangeUserStatusMutation();
+  const updateOrgAdminMutation = useUpdateUserOrgAdminMutation();
 
   // Use the custom hook for all Users business logic
   const { users, isLoading, totalCount, tableState, setFocusedUser, handleRowClick: hookHandleRowClick } = useUsers({ enableAdminFeatures: true });
 
   // Modal state
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | undefined>();
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 
   // Add user to group modal state
@@ -57,90 +46,39 @@ export const Users: React.FC<UsersProps> = ({ usersRef, defaultPerPage = 20, oui
   // Local focus state for compatibility with existing components (they expect undefined, not null)
   const [localFocusedUser, setLocalFocusedUser] = useState<User | undefined>();
 
-  // Auth and permissions (V2: Kessel domain hooks)
-  const { organizationId: accountId } = useOrganizationData();
-  const { environment } = usePlatformEnvironment();
-  const { getToken } = usePlatformAuth();
+  // Permissions (V2: Kessel domain hooks)
   const { canInvite: orgAdmin } = usePrincipalsAccess();
 
-  // User status toggle handler - now using React Query
   const handleToggleUserStatus = useCallback(
     async (user: User, isActive: boolean) => {
-      try {
-        const token = await getToken();
-        await changeUserStatusMutation.mutateAsync({
-          users: [
-            {
-              ...user,
-              id: user.external_source_id,
-              is_active: isActive,
-            },
-          ],
-          config: { environment, token, accountId },
-          itless: isITLess,
-        });
-        addNotification({
-          variant: 'success',
-          title: intl.formatMessage(messages.editUserSuccessTitle),
-          dismissable: true,
-          description: intl.formatMessage(messages.editUserSuccessDescription),
-        });
-      } catch (error) {
-        console.error('Failed to update status:', error);
-        addNotification({
-          variant: 'danger',
-          title: intl.formatMessage(messages.editUserErrorTitle),
-          dismissable: true,
-          description: intl.formatMessage(messages.editUserErrorDescription),
-        });
-      }
+      if (user.external_source_id == null) return;
+      await changeUserStatusMutation.mutateAsync({
+        users: [{ id: user.external_source_id, username: user.username, is_active: isActive }],
+      });
     },
-    [changeUserStatusMutation, environment, getToken, accountId, intl, isITLess, addNotification],
+    [changeUserStatusMutation],
   );
 
-  // Org admin toggle handler
-  const handleToggleOrgAdmin = useCallback((_user: User, _isOrgAdmin: boolean) => {
-    // TODO: Implement org admin toggle logic
-    console.log(`Toggle org admin for ${_user.username} to ${_isOrgAdmin}`);
-  }, []);
+  const handleToggleOrgAdmin = useCallback(
+    async (user: User, isOrgAdmin: boolean) => {
+      if (user.external_source_id == null) return;
+      await updateOrgAdminMutation.mutateAsync({
+        userId: String(user.external_source_id),
+        isOrgAdmin,
+      });
+    },
+    [updateOrgAdminMutation],
+  );
 
-  // Delete user handler
-  const handleDeleteUser = useCallback((user: User) => {
-    setCurrentUser(user);
-    setIsDeleteModalOpen(true);
-  }, []);
-
-  // Bulk activate handler
   const handleBulkActivate = useCallback(
     async (usersToActivate: User[]) => {
-      try {
-        const token = await getToken();
-        await changeUserStatusMutation.mutateAsync({
-          users: usersToActivate.map((user) => ({
-            ...user,
-            id: user.external_source_id,
-            is_active: true,
-          })),
-          config: { environment, token, accountId },
-          itless: isITLess,
-        });
-        addNotification({
-          variant: 'success',
-          title: intl.formatMessage(messages.editUserSuccessTitle),
-          dismissable: true,
-          description: intl.formatMessage(messages.editUserSuccessDescription),
-        });
-      } catch (error) {
-        console.error('Failed to activate users:', error);
-        addNotification({
-          variant: 'danger',
-          title: intl.formatMessage(messages.editUserErrorTitle),
-          dismissable: true,
-          description: intl.formatMessage(messages.editUserErrorDescription),
-        });
-      }
+      const valid = usersToActivate.filter((u) => u.external_source_id != null);
+      if (valid.length === 0) return;
+      await changeUserStatusMutation.mutateAsync({
+        users: valid.map((user) => ({ id: user.external_source_id, username: user.username, is_active: true })),
+      });
     },
-    [changeUserStatusMutation, environment, getToken, accountId, intl, isITLess, addNotification],
+    [changeUserStatusMutation],
   );
 
   // Bulk deactivate handler (opens confirmation modal)
@@ -189,60 +127,16 @@ export const Users: React.FC<UsersProps> = ({ usersRef, defaultPerPage = 20, oui
     [context, hookHandleRowClick, setFocusedUser],
   );
 
-  // Modal handlers
-  const handleConfirmDelete = useCallback(() => {
-    if (currentUser) {
-      console.log(`Deleting ${currentUser.username} from user groups`);
-      // TODO: Add delete user API call here when v2 is ready
-      setIsDeleteModalOpen(false);
-      setCurrentUser(undefined);
-    }
-  }, [currentUser]);
-
   const handleConfirmBulkDeactivate = useCallback(async () => {
-    try {
-      const token = await getToken();
+    const valid = selectedUsers.filter((u) => u.external_source_id != null);
+    if (valid.length > 0) {
       await changeUserStatusMutation.mutateAsync({
-        users: selectedUsers.map((user) => ({
-          ...user,
-          id: user.external_source_id,
-          is_active: false,
-        })),
-        config: { environment, token, accountId },
-        itless: isITLess,
-      });
-      addNotification({
-        variant: 'success',
-        title: intl.formatMessage(messages.editUserSuccessTitle),
-        dismissable: true,
-        description: intl.formatMessage(messages.editUserSuccessDescription),
-      });
-    } catch (error) {
-      console.error('Failed to deactivate users:', error);
-      addNotification({
-        variant: 'danger',
-        title: intl.formatMessage(messages.editUserErrorTitle),
-        dismissable: true,
-        description: intl.formatMessage(messages.editUserErrorDescription),
+        users: valid.map((user) => ({ id: user.external_source_id, username: user.username, is_active: false })),
       });
     }
     setIsStatusModalOpen(false);
     setSelectedUsers([]);
-  }, [selectedUsers, changeUserStatusMutation, environment, getToken, accountId, intl, isITLess, addNotification]);
-
-  // Render modals
-  const deleteModal = (
-    <DeleteUserModal
-      isOpen={isDeleteModalOpen}
-      username={currentUser?.username}
-      onClose={() => {
-        setIsDeleteModalOpen(false);
-        setCurrentUser(undefined);
-      }}
-      onConfirm={handleConfirmDelete}
-      ouiaId={`${ouiaId}-remove-user-modal`}
-    />
-  );
+  }, [selectedUsers, changeUserStatusMutation]);
 
   const statusModal = (
     <BulkDeactivateUsersModal
@@ -282,14 +176,12 @@ export const Users: React.FC<UsersProps> = ({ usersRef, defaultPerPage = 20, oui
               onInviteUsersClick={handleInviteUsers}
               onToggleUserStatus={handleToggleUserStatus}
               onToggleOrgAdmin={handleToggleOrgAdmin}
-              onDeleteUser={handleDeleteUser}
               onBulkActivate={handleBulkActivate}
               onBulkDeactivate={handleBulkDeactivate}
               onRowClick={handleRowClick}
               // Table state props - managed by useTableState via useUsers hook
               tableState={tableState}
             >
-              {deleteModal}
               {statusModal}
             </UsersTable>
           </TabContent>

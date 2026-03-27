@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { queryMenuToggle, queryTreeViewToggle } from '../../../../../test-utils/interactionHelpers';
 import { ManagedWorkspaceSelector } from './ManagedWorkspaceSelector';
 import { WorkspacesWorkspaceTypes } from '../../../../data/api/workspaces';
 import { workspacesErrorHandlers, workspacesHandlers } from '../../../../data/mocks/workspaces.handlers';
@@ -258,9 +259,9 @@ export const LoadingAndLoaded: Story = {
     await step('Verify loading and loaded state', async () => {
       // Stage 1: wait until the component has mounted and rendered anything (look for menu toggle skeleton)
       await waitFor(
-        async () => {
-          const toggleNode = canvasElement.querySelector('.pf-v6-c-menu-toggle');
-          await expect(toggleNode).not.toBeNull();
+        () => {
+          const toggleNode = queryMenuToggle(canvasElement);
+          expect(toggleNode).not.toBeNull();
         },
         { timeout: 15000 },
       );
@@ -411,8 +412,9 @@ export const SelectionCallback: Story = {
       });
 
       // Should update the toggle text
-      let menuToggle = canvasElement.querySelector('.pf-v6-c-menu-toggle');
-      await expect(menuToggle).toHaveTextContent('Production Environment');
+      const menuToggle = queryMenuToggle(canvasElement);
+      expect(menuToggle).toBeTruthy();
+      expect(menuToggle).toHaveTextContent('Production Environment');
     });
     await step('Select API Services', async () => {
       // Reset mock for second test
@@ -444,8 +446,9 @@ export const SelectionCallback: Story = {
       });
 
       // Should update the toggle text to show new selection
-      const menuToggle = canvasElement.querySelector('.pf-v6-c-menu-toggle');
-      await expect(menuToggle).toHaveTextContent('API Services');
+      const menuToggle = queryMenuToggle(canvasElement);
+      expect(menuToggle).toBeTruthy();
+      expect(menuToggle).toHaveTextContent('API Services');
     });
   },
 };
@@ -552,8 +555,9 @@ export const DuplicateWorkspaceNames: Story = {
       await expect(within(document.body).findByText('Root Workspace')).resolves.toBeInTheDocument();
 
       // Expand the root workspace to see duplicate children
-      const expandButton = document.body.querySelector('.pf-v6-c-tree-view__node-toggle') as HTMLButtonElement;
-      await userEvent.click(expandButton);
+      const expandButton = queryTreeViewToggle(document.body);
+      expect(expandButton).toBeInTheDocument();
+      await userEvent.click(expandButton as HTMLElement);
 
       // Should show both duplicate workspaces
       const duplicateWorkspaces = await within(document.body).findAllByText('Duplicate Workspace');
@@ -577,20 +581,23 @@ export const RequiredPermissionCreate: Story = {
     requiredPermission: 'create',
   },
   parameters: {
-    // Only workspace-1 (root) has create permission; children do not
+    // Only workspace-2 (standard) has create permission; root and others do not.
+    // Root workspace can never have create due to type constraints in useWorkspacePermissions.
     workspacePermissions: {
       view: ALL_WORKSPACE_IDS,
       edit: ALL_WORKSPACE_IDS,
       delete: [],
-      create: ['workspace-1'],
+      create: ['workspace-2'],
       move: [],
     },
     docs: {
       description: {
         story: `Tests the \`requiredPermission="create"\` prop.
 
-Only **Production Environment** (workspace-1) has the \`create\` permission.
-The child workspaces (Web Services, API Services, Development Environment) are still visible in the tree to preserve hierarchy, but they appear **dimmed** and are **not selectable**.
+Only **Web Services** (workspace-2, standard type) has the \`create\` permission.
+The root workspace and other children are still visible to preserve hierarchy, but they appear **dimmed** and are **not selectable**.
+
+Note: Root-type workspaces can never have \`create\` due to type constraints enforced by \`useWorkspacePermissions\`.
 
 This is the common use case for "choose where to create a new workspace" flows.`,
       },
@@ -601,14 +608,14 @@ This is the common use case for "choose where to create a new workspace" flows.`
       await openSelector(canvasElement);
       await expandRootNode();
 
-      // Children should be visible but disabled
-      await expectDisabled('Web Services');
+      // Root should be disabled (root type can never have create)
+      await expectDisabled('Production Environment');
 
-      // Click disabled child – should NOT trigger onSelect
-      await clickAndExpectNoSelect('Web Services', args.onSelect as ReturnType<typeof fn>);
+      // Click disabled root – should NOT trigger onSelect
+      await clickAndExpectNoSelect('Production Environment', args.onSelect as ReturnType<typeof fn>);
 
-      // Click root (has create permission) – SHOULD trigger onSelect
-      await clickAndExpectSelect('Production Environment', args.onSelect as ReturnType<typeof fn>, 'workspace-1', 'Production Environment');
+      // Click Web Services (standard, has create) – SHOULD trigger onSelect
+      await clickAndExpectSelect('Web Services', args.onSelect as ReturnType<typeof fn>, 'workspace-2', 'Web Services');
     });
   },
 };

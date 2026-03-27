@@ -21,7 +21,7 @@ const MyWorkspaces: React.FunctionComponent = () => {
   const columnConfig: ColumnConfigMap<typeof columns> = useMemo(
     () => ({
       name: { label: intl.formatMessage(messages.workspace), sortable: true },
-      role: { label: intl.formatMessage(messages.role) },
+      role: { label: intl.formatMessage(messages.adminOrViewerRole) },
     }),
     [intl],
   );

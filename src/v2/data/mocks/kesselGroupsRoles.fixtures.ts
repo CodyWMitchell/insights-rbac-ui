@@ -166,6 +166,15 @@ export const KESSEL_ROLE_WS_VIEWER = defaultKesselRoles[1];
 export const KESSEL_ROLE_WS_EDITOR = defaultKesselRoles[2];
 
 /**
+ * Maps resource types to kessel role IDs assignable at that level.
+ * Used by MSW handlers to simulate backend resource_type filtering.
+ */
+export const KESSEL_ROLES_BY_RESOURCE_TYPE: Record<string, string[]> = {
+  tenant: ['kessel-role-1', 'kessel-role-2', 'kessel-role-6', 'kessel-role-7'],
+  workspace: ['kessel-role-1', 'kessel-role-2', 'kessel-role-3', 'kessel-role-4', 'kessel-role-5'],
+};
+
+/**
  * Mock group members for drawer Users tab
  */
 export const defaultKesselGroupMembers: Map<string, Principal[]> = new Map([

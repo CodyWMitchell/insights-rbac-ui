@@ -15,6 +15,7 @@ import ReviewSelection from './components/ReviewSelection';
 export interface GrantAccessWizardProps {
   workspaceName: string;
   workspaceId: string;
+  resourceType?: 'workspace' | 'tenant';
   afterSubmit?: () => void;
   onCancel?: () => void;
 }
@@ -28,7 +29,13 @@ const customComponentMapper = {
   'review-selection': ReviewSelection,
 };
 
-export const GrantAccessWizard: React.FunctionComponent<GrantAccessWizardProps> = ({ workspaceName, workspaceId, afterSubmit, onCancel }) => {
+export const GrantAccessWizard: React.FunctionComponent<GrantAccessWizardProps> = ({
+  workspaceName,
+  workspaceId,
+  resourceType = 'workspace',
+  afterSubmit,
+  onCancel,
+}) => {
   const navigate = useAppNavigate();
   const batchCreateMutation = useGrantAccessMutation();
 
@@ -49,12 +56,12 @@ export const GrantAccessWizard: React.FunctionComponent<GrantAccessWizardProps> 
 
     if (groupIds.length === 0 || roleIds.length === 0) return;
 
-    batchCreateMutation.mutate({ workspaceId, groupIds, roleIds }, { onSuccess: () => (afterSubmit || defaultAfterSubmit)() });
+    batchCreateMutation.mutate({ workspaceId, groupIds, roleIds, resourceType }, { onSuccess: () => (afterSubmit || defaultAfterSubmit)() });
   };
 
   return (
     <FormRenderer
-      schema={schemaBuilder(workspaceName)}
+      schema={schemaBuilder(workspaceName, workspaceId, resourceType)}
       componentMapper={customComponentMapper}
       FormTemplate={FormTemplate}
       onSubmit={onSubmit}

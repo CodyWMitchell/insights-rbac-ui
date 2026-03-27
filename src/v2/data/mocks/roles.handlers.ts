@@ -13,6 +13,8 @@ export interface V2RolesHandlerOptions {
   onList?: (...args: unknown[]) => void;
   /** When provided, overrides roles returned for username-filtered requests */
   rolesForUsername?: (username: string) => Role[] | null;
+  /** When provided, overrides roles returned for resource-type-filtered requests */
+  rolesForResource?: (resourceType: string, resourceId: string) => Role[] | null;
   /** Spy function called on read requests */
   onRead?: (...args: unknown[]) => void;
   /** Spy function called on create requests */
@@ -44,8 +46,18 @@ export function createV2RolesHandlers(collection: MockCollection<Role>, options:
       const nameFilter = url.searchParams.get('name');
       const orderBy = url.searchParams.get('order_by') || '';
       const usernameFilter = url.searchParams.get('username');
+      const resourceTypeFilter = url.searchParams.get('resource_type');
+      const resourceIdFilter = url.searchParams.get('resource_id');
 
       let roles = collection.all();
+
+      if (resourceTypeFilter && options.rolesForResource) {
+        const resourceRoles = options.rolesForResource(resourceTypeFilter, resourceIdFilter ?? '');
+        if (resourceRoles !== null) {
+          const allowedIds = new Set(resourceRoles.map((r) => r.id));
+          roles = roles.filter((r) => allowedIds.has(r.id));
+        }
+      }
 
       if (usernameFilter && options.rolesForUsername) {
         const customRoles = options.rolesForUsername(usernameFilter);

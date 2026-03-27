@@ -1,6 +1,7 @@
 import React, { Fragment, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useFieldApi from '@data-driven-forms/react-form-renderer/use-field-api';
+import type { UseFieldApiConfig } from '@data-driven-forms/react-form-renderer/use-field-api/use-field-api';
 import useFormApi from '@data-driven-forms/react-form-renderer/use-form-api';
 import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
 import { useGroupsQuery } from '../../../../../v2/data/queries/groups';
@@ -9,14 +10,10 @@ import messages from '../../../../../Messages';
 import { Form } from '@patternfly/react-core/dist/dynamic/components/Form';
 import { FormGroup, Stack, StackItem } from '@patternfly/react-core';
 
-interface UserGroupsSelectionFieldProps {
-  name: string;
-}
-
-const UserGroupsSelectionField: React.FC<UserGroupsSelectionFieldProps> = ({ name }) => {
+const UserGroupsSelectionField: React.FC<UseFieldApiConfig> = (props) => {
   const intl = useIntl();
   const formOptions = useFormApi();
-  const { input } = useFieldApi({ name });
+  const { input } = useFieldApi(props);
 
   // React Query hook for groups
   const { data: groupsData, isLoading } = useGroupsQuery({ limit: 1000 });
@@ -26,6 +23,7 @@ const UserGroupsSelectionField: React.FC<UserGroupsSelectionFieldProps> = ({ nam
 
   useEffect(() => {
     input.onChange(selectedGroups);
+    input.onBlur();
     formOptions.change('selected-user-groups', selectedGroups);
   }, [selectedGroups]);
 

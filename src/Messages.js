@@ -947,6 +947,11 @@ export default defineMessages({
     description: 'Roles plural',
     defaultMessage: 'Roles',
   },
+  adminOrViewerRole: {
+    id: 'adminOrViewerRole',
+    description: 'Admin or viewer role column label',
+    defaultMessage: 'Admin or Viewer role',
+  },
   userGroups: {
     id: 'userGroups',
     description: 'User groups plural',
@@ -956,6 +961,11 @@ export default defineMessages({
     id: 'userGroup',
     description: 'User group singular',
     defaultMessage: 'User group',
+  },
+  userGroupName: {
+    id: 'userGroupName',
+    description: 'User group name column header',
+    defaultMessage: 'User group name',
   },
   groups: {
     id: 'groups',
@@ -1120,6 +1130,26 @@ export default defineMessages({
     description: 'Audit log empty state when filters match no results',
     defaultMessage: 'No audit log entries found',
   },
+  filterByRequester: {
+    id: 'filterByRequester',
+    description: 'Audit log filter placeholder for requester',
+    defaultMessage: 'Filter by requester',
+  },
+  userCapitalized: {
+    id: 'userCapitalized',
+    description: 'User singular (capitalized)',
+    defaultMessage: 'User',
+  },
+  add: {
+    id: 'add',
+    description: 'Add label',
+    defaultMessage: 'Add',
+  },
+  create: {
+    id: 'create',
+    description: 'Create label',
+    defaultMessage: 'Create',
+  },
   overviewHeroTitle: {
     id: 'overviewHeroTitle',
     description: 'Overview Hero section title',
@@ -1174,6 +1204,36 @@ export default defineMessages({
     id: 'createWorkspaceErrorDescription',
     description: 'Create workspace error notification description',
     defaultMessage: 'The workspace was not created successfuly.',
+  },
+  createWorkspaceProgressTitle: {
+    id: 'createWorkspaceProgressTitle',
+    description: 'Title shown while waiting for workspace permissions to propagate',
+    defaultMessage: 'Setting up your workspace',
+  },
+  createWorkspaceProgressBody: {
+    id: 'createWorkspaceProgressBody',
+    description: 'Body text shown while waiting for workspace permissions to propagate',
+    defaultMessage: 'Configuring permissions for {name}. This usually takes a few seconds.',
+  },
+  createWorkspaceReadyTitle: {
+    id: 'createWorkspaceReadyTitle',
+    description: 'Title shown when workspace permissions are fully propagated',
+    defaultMessage: 'Workspace ready',
+  },
+  createWorkspaceReadyBody: {
+    id: 'createWorkspaceReadyBody',
+    description: 'Body text shown when workspace permissions are fully propagated',
+    defaultMessage: '{name} has been created and is ready to use.',
+  },
+  createWorkspaceTimeoutTitle: {
+    id: 'createWorkspaceTimeoutTitle',
+    description: 'Title shown when workspace permission propagation takes too long',
+    defaultMessage: 'Taking longer than expected',
+  },
+  createWorkspaceTimeoutBody: {
+    id: 'createWorkspaceTimeoutBody',
+    description: 'Body text shown when workspace permission propagation takes too long',
+    defaultMessage: '{name} was created, but permissions are still being set up. You can close this dialog and check back shortly.',
   },
   editWorkspaceSuccessTitle: {
     id: 'editWorkspaceSuccessTitle',
@@ -1345,6 +1405,11 @@ export default defineMessages({
     id: 'workspacesActionManageNotifications',
     description: 'Menu item Manage notifications',
     defaultMessage: 'Manage notifications',
+  },
+  workspacesActionMoveWorkspace: {
+    id: 'workspacesActionMoveWorkspace',
+    description: 'Menu item Move workspace',
+    defaultMessage: 'Move workspace',
   },
   workspacesActionDeleteWorkspace: {
     id: 'workspacesActionDeleteWorkspace',
@@ -1696,10 +1761,20 @@ export default defineMessages({
     description: 'Add member',
     defaultMessage: 'Add member',
   },
+  allOrgAdmins: {
+    id: 'allOrgAdmins',
+    description: 'All org admins label for admin default groups',
+    defaultMessage: 'All org admins',
+  },
   allOrgAdminsAreMembers: {
     id: 'allOrgAdminsAreMembers',
     description: 'All org. admins are members of this group message',
     defaultMessage: 'All organization administrators in this organization are members of this group.',
+  },
+  allUsers: {
+    id: 'allUsers',
+    description: 'All users label for default groups',
+    defaultMessage: 'All users',
   },
   allUsersAreMembers: {
     id: 'allUsersAreMembers',
@@ -2866,16 +2941,6 @@ export default defineMessages({
     description: 'column header for assigned user groups table',
     defaultMessage: 'Workspace assignment (TBD)',
   },
-  deleteUserModalTitle: {
-    id: 'deleteUserModalTitle',
-    description: 'Title for delete user modal ',
-    defaultMessage: 'Remove from user groups?',
-  },
-  deleteUserModalBody: {
-    id: 'deleteUserModalBody',
-    description: 'Modal body text for delete user',
-    defaultMessage: 'will lose all the roles associated with the user groups it belongs to.',
-  },
   deleteUserGroupModalTitle: {
     id: 'deleteUserGroupModalTitle',
     description: 'Title for delete user group modal',
@@ -3104,6 +3169,11 @@ export default defineMessages({
     description: 'Grant access in workspace wizard title',
     defaultMessage: 'Grant access in Workspace {workspaceName}',
   },
+  grantAccessInOrganization: {
+    id: 'grantAccessInOrganization',
+    description: 'Grant access in organization wizard title',
+    defaultMessage: 'Grant organization-wide access',
+  },
   selectUserGroups: {
     id: 'selectUserGroups',
     description: 'Select user groups step title',
@@ -3331,5 +3401,10 @@ export default defineMessages({
     id: 'removeGroupFromWorkspaceErrorTitle',
     description: 'Error notification when removing group from workspace fails',
     defaultMessage: 'Failed to remove group from workspace',
+  },
+  removeAccess: {
+    id: 'removeAccess',
+    description: 'Remove access action label',
+    defaultMessage: 'Remove access',
   },
 });

@@ -4,7 +4,8 @@ import { useAppLink } from '../shared/hooks/useAppLink';
 import { usePlatformTracking } from '../shared/hooks/usePlatformTracking';
 import { AppPlaceholder } from '../shared/components/ui-states/LoaderPlaceholders';
 import ElementWrapper from '../shared/components/ElementWrapper';
-import { guard, guardOrgAdmin } from '../shared/components/PermissionGuard';
+import { groups, principals, roles, v2Guard, v2GuardOrgAdmin } from './components/V2PermissionGuard';
+import { v2WorkspaceGuard } from './components/V2WorkspacePermissionGuard';
 import pathnames from './utilities/pathnames';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- outlet context props are injected at runtime via ElementWrapper/cloneElement
@@ -58,8 +59,8 @@ export const V2Routing = () => {
   return (
     <Suspense fallback={<AppPlaceholder />}>
       <Routes>
-        {/* Overview — require rbac:*:read */}
-        <Route {...guard(['rbac:*:read'])}>
+        {/* Overview — require roles read (any RBAC read as existence check) */}
+        <Route {...v2Guard([roles.canView])}>
           <Route path={pathnames.overview.path} element={<V2Overview />} />
         </Route>
 
@@ -69,30 +70,32 @@ export const V2Routing = () => {
           <Route path={pathnames['my-access-workspaces'].path} element={<MyWorkspaces />} />
         </Route>
 
-        {/* Users & User Groups — require principal:read OR group:read */}
-        <Route {...guard(['rbac:principal:read', 'rbac:group:read'], { checkAll: false })}>
+        {/* Users & User Groups — require principal list OR group view */}
+        <Route {...v2Guard([principals.canList, groups.canView], { checkAll: false })}>
           <Route path={pathnames['users-and-user-groups'].path} element={<UsersAndUserGroups />}>
-            <Route path={pathnames['users-new'].path} element={<AccessManagementUsers />}>
-              <Route {...guard(['rbac:principal:write'])}>
-                <Route path={pathnames['invite-group-users'].path} element={outletElement(InviteUsersModalCommonAuth)} />
+            <Route {...v2Guard([principals.canList])}>
+              <Route path={pathnames['users-new'].path} element={<AccessManagementUsers />}>
+                <Route {...v2GuardOrgAdmin()}>
+                  <Route path={pathnames['invite-group-users'].path} element={outletElement(InviteUsersModalCommonAuth)} />
+                </Route>
               </Route>
             </Route>
-            <Route {...guard(['rbac:group:read'])}>
+            <Route {...v2Guard([groups.canView])}>
               <Route path={pathnames['user-groups'].path} element={<AccessManagementUserGroups />}>
                 <Route path={pathnames['create-user-group'].path} element={<AddGroupWizard />} />
               </Route>
             </Route>
           </Route>
         </Route>
-        <Route {...guard(['rbac:group:write'])}>
+        <Route {...v2Guard([groups.canCreate])}>
           <Route path={pathnames['users-and-user-groups-edit-group'].path} element={<EditUserGroup />} />
           <Route path={pathnames['users-and-user-groups-create-group'].path} element={<CreateUserGroup />} />
         </Route>
 
-        {/* Roles — require rbac:role:read */}
-        <Route {...guard(['rbac:role:read'])}>
+        {/* Roles — require roles view */}
+        <Route {...v2Guard([roles.canView])}>
           <Route path={pathnames['access-management-roles'].path} element={<RolesWithWorkspaces />}>
-            <Route {...guard(['rbac:role:write'])}>
+            <Route {...v2Guard([roles.canCreate])}>
               <Route
                 path={pathnames['access-management-add-role'].path}
                 element={outletElement(AddRoleWizard, pathnames['access-management-add-role'].path)}
@@ -100,39 +103,38 @@ export const V2Routing = () => {
             </Route>
           </Route>
         </Route>
-        <Route {...guard(['rbac:role:write'])}>
+        <Route {...v2Guard([roles.canUpdate])}>
           <Route path={`${pathnames['access-management-roles'].link()}/${pathnames['access-management-edit-role'].path}`} element={<EditRole />} />
         </Route>
 
-        {/* Workspaces — require inventory:groups:read */}
-        <Route {...guard(['inventory:groups:read'])}>
-          <Route path={pathnames['workspace-detail'].path} element={<WorkspaceDetail />}>
-            <Route {...guard(['inventory:groups:write'])}>
-              <Route path={pathnames['edit-workspace'].path} element={outletElement(EditWorkspaceModal, pathnames['edit-workspace'].path)} />
-              <Route
-                path={pathnames['workspace-role-access'].path}
-                element={outletElement(RoleAccessModal, pathnames['workspace-role-access'].path)}
-              />
-            </Route>
+        {/* Workspaces — view gate disabled (new orgs may have zero standard workspaces) */}
+        <Route path={pathnames['workspace-detail'].path} element={<WorkspaceDetail />}>
+          <Route {...v2WorkspaceGuard('edit')}>
+            <Route path={pathnames['edit-workspace'].path} element={outletElement(EditWorkspaceModal, pathnames['edit-workspace'].path)} />
           </Route>
-          <Route path={pathnames['access-management-workspaces'].path} element={<WorkspaceList />}>
-            <Route {...guard(['inventory:groups:write'])}>
-              <Route path={pathnames['create-workspace'].path} element={<CreateWorkspaceWizard />} />
-              <Route
-                path={pathnames['edit-workspaces-list'].path}
-                element={outletElement(EditWorkspaceModal, pathnames['edit-workspaces-list'].path)}
-              />
-            </Route>
+          <Route {...v2WorkspaceGuard('create')}>
+            <Route path={pathnames['workspace-role-access'].path} element={outletElement(RoleAccessModal, pathnames['workspace-role-access'].path)} />
+          </Route>
+        </Route>
+        <Route path={pathnames['access-management-workspaces'].path} element={<WorkspaceList />}>
+          <Route {...v2WorkspaceGuard('create')}>
+            <Route path={pathnames['create-workspace'].path} element={<CreateWorkspaceWizard />} />
+          </Route>
+          <Route {...v2WorkspaceGuard('edit')}>
+            <Route
+              path={pathnames['edit-workspaces-list'].path}
+              element={outletElement(EditWorkspaceModal, pathnames['edit-workspaces-list'].path)}
+            />
           </Route>
         </Route>
 
         {/* Audit Log — org admin only */}
-        <Route {...guardOrgAdmin()}>
+        <Route {...v2GuardOrgAdmin()}>
           <Route path={pathnames['access-management-audit-log'].path} element={<AuditLog />} />
         </Route>
 
         {/* Organization Management — requires orgAdmin */}
-        <Route {...guardOrgAdmin()}>
+        <Route {...v2GuardOrgAdmin()}>
           <Route path={pathnames['organization-management'].path} element={<OrganizationManagement />} />
         </Route>
 

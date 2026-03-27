@@ -1,13 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import { waitForContentReady } from '../../../../test-utils/interactionHelpers';
+import { waitForContentReady, waitForDrawer } from '../../../../test-utils/interactionHelpers';
 import { TEST_TIMEOUTS } from '../../../../test-utils/testUtils';
 import { findSortButton } from '../../../../test-utils/tableHelpers';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { MyGroups } from './MyGroups';
 import { groupsHandlers } from '../../../../shared/data/mocks/groups.handlers';
-import { groupRolesHandlers } from '../../../../shared/data/mocks/groupRoles.handlers';
+import { createRoleBindingsListHandlers } from '../../../../v2/data/mocks/roleBindings.handlers';
+import { DEFAULT_ROLE_BINDINGS } from '../../../../v2/data/mocks/seed';
 import { GROUP_SUPPORT_TEAM, GROUP_SYSTEM_DEFAULT } from '../../../../shared/data/mocks/seed';
 
 const meta: Meta<typeof MyGroups> = {
@@ -15,7 +16,7 @@ const meta: Meta<typeof MyGroups> = {
   tags: ['autodocs'],
   parameters: {
     msw: {
-      handlers: [...groupsHandlers(), ...groupRolesHandlers()],
+      handlers: [...groupsHandlers(), ...createRoleBindingsListHandlers(DEFAULT_ROLE_BINDINGS)],
     },
     docs: {
       description: {
@@ -46,8 +47,23 @@ type Story = StoryObj<typeof MyGroups>;
 export const Default: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
     await step('Verify default my groups', async () => {
       await expect(canvas.findByLabelText('My groups')).resolves.toBeInTheDocument();
+    });
+
+    await step('Verify group name renders as clickable button', async () => {
+      await waitForContentReady(canvasElement);
+      const btn = await canvas.findByRole('button', { name: new RegExp(GROUP_SYSTEM_DEFAULT.name, 'i') });
+      await expect(btn).toBeInTheDocument();
+    });
+
+    await step('Click group name button and verify drawer opens', async () => {
+      const btn = await canvas.findByRole('button', { name: new RegExp(GROUP_SYSTEM_DEFAULT.name, 'i') });
+      await user.click(btn);
+      const drawer = await waitForDrawer();
+      await expect(drawer.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument();
     });
   },
 };
@@ -74,7 +90,7 @@ export const SortByName: Story = {
       await user.click(sortButton);
       await waitFor(
         () => {
-          const rows = canvas.getAllByRole('row');
+          const rows = canvas.queryAllByRole('row');
           expect(rows[1]).toHaveTextContent(new RegExp(GROUP_SUPPORT_TEAM.name, 'i'));
         },
         { timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH },
@@ -86,7 +102,7 @@ export const SortByName: Story = {
       await user.click(sortButton);
       await waitFor(
         () => {
-          const rows = canvas.getAllByRole('row');
+          const rows = canvas.queryAllByRole('row');
           expect(rows[1]).toHaveTextContent(new RegExp(GROUP_SYSTEM_DEFAULT.name, 'i'));
         },
         { timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH },

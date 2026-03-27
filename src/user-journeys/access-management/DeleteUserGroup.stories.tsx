@@ -71,21 +71,21 @@ const meta = {
     permissions: KESSEL_PERMISSIONS.FULL_ADMIN,
     orgAdmin: true,
     'platform.rbac.common-auth-model': true,
-    'platform.rbac.workspaces-organization-management': true,
+    'platform.rbac.workspaces': true,
   },
   parameters: {
     ...createDynamicEnvironment({
       permissions: KESSEL_PERMISSIONS.FULL_ADMIN,
       orgAdmin: true,
       'platform.rbac.common-auth-model': true,
-      'platform.rbac.workspaces-organization-management': true,
+      'platform.rbac.workspaces': true,
     }),
     msw: {
       handlers: [
         ...deleteGroupHandlers,
         ...v2DefaultHandlers.filter((h) => {
           const path = h.info?.path?.toString() || '';
-          if (!path.includes('/api/rbac/v1/groups') && !path.includes('/api/rbac/v2/groups')) return true;
+          if (!path.includes('/api/rbac/v1/groups')) return true;
           if (path.includes('/principals/') || path.includes('/service-accounts/')) return true;
           return false;
         }),
@@ -311,7 +311,7 @@ Tests canceling the delete confirmation modal.
 
     await step('Verify group still exists in table', async () => {
       const table = await canvas.findByRole('grid', { name: /user groups table/i });
-      await waitFor(() => expect(within(table).getByText(targetGroup)).toBeInTheDocument(), { timeout: TEST_TIMEOUTS.ELEMENT_WAIT });
+      await waitFor(() => expect(within(table).queryByText(targetGroup)).toBeInTheDocument(), { timeout: TEST_TIMEOUTS.ELEMENT_WAIT });
     });
   },
 };

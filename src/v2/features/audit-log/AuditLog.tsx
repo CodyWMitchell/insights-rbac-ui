@@ -5,11 +5,19 @@ import { PageSection } from '@patternfly/react-core/dist/dynamic/components/Page
 import { DateFormat } from '@redhat-cloud-services/frontend-components/DateFormat';
 import { TableView, useTableState } from '../../../shared/components/table-view';
 import { DefaultEmptyStateNoData, DefaultEmptyStateNoResults } from '../../../shared/components/table-view/components/TableViewEmptyState';
-import type { CellRendererMap, ColumnConfigMap } from '../../../shared/components/table-view/types';
-import { type GetAuditlogsParams, useAuditLogsQuery } from '../../data/queries/audit';
+import type { CellRendererMap, ColumnConfigMap, FilterConfig } from '../../../shared/components/table-view/types';
+import { GetAuditlogsActionEnum as ActionEnum, GetAuditlogsResourceTypeEnum as ResourceTypeEnum, useAuditLogsQuery } from '../../data/queries/audit';
 import type { AuditLog as ApiAuditLog } from '../../data/queries/audit';
 import { getDateFormat } from '../../../shared/helpers/stringUtilities';
 import messages from '../../../Messages';
+
+const VALID_RESOURCE_TYPES = new Set<string>(Object.values(ResourceTypeEnum));
+const VALID_ACTIONS = new Set<string>(Object.values(ActionEnum));
+
+function filterValidEnumValues<T extends string>(values: string[], validSet: Set<string>): T[] | undefined {
+  const filtered = values.filter((v) => validSet.has(v)) as T[];
+  return filtered.length > 0 ? filtered : undefined;
+}
 
 export type { AuditLogEntry } from './AuditLogTable';
 
@@ -37,7 +45,7 @@ function mapApiEntry(entry: ApiAuditLog, index: number, offset: number): AuditLo
   };
 }
 
-const AuditLog: React.FC = () => {
+export const AuditLog: React.FC = () => {
   const intl = useIntl();
 
   const tableState = useTableState<typeof columns, AuditLogRow>({
@@ -45,21 +53,28 @@ const AuditLog: React.FC = () => {
     getRowId: (row) => row.id,
     initialPerPage: 20,
     perPageOptions: [10, 20, 50],
+    initialFilters: { requester: '', resource: [] as string[], action: [] as string[] },
     syncWithUrl: true,
   });
 
-  const queryParams: GetAuditlogsParams = useMemo(
-    () => ({
-      limit: tableState.perPage,
-      offset: (tableState.page - 1) * tableState.perPage,
+  const queryParams = useMemo(() => {
+    const { limit, offset, filters } = tableState.apiParams;
+    const requester = (filters?.requester as string | undefined) ?? '';
+    const resource = (filters?.resource as string[] | undefined) ?? [];
+    const action = (filters?.action as string[] | undefined) ?? [];
+    return {
+      limit,
+      offset,
       orderBy: '-created' as const,
-    }),
-    [tableState.perPage, tableState.page],
-  );
+      principalUsername: requester || undefined,
+      nameMatch: requester ? ('partial' as const) : undefined,
+      resourceType: filterValidEnumValues<ResourceTypeEnum>(resource, VALID_RESOURCE_TYPES),
+      action: filterValidEnumValues<ActionEnum>(action, VALID_ACTIONS),
+    };
+  }, [tableState.apiParams]);
 
   const { data: auditData, isLoading, isError, error } = useAuditLogsQuery(queryParams);
-
-  const offset = queryParams.offset ?? 0;
+  const offset = tableState.apiParams.offset;
   const entries = useMemo(() => (auditData?.data ?? []).map((entry, i) => mapApiEntry(entry, i, offset)), [auditData, offset]);
   const totalCount = auditData?.meta?.count ?? 0;
   const errorMessage = isError ? (error instanceof Error ? error.message : 'Failed to load audit log') : null;
@@ -67,11 +82,45 @@ const AuditLog: React.FC = () => {
   const columnConfig: ColumnConfigMap<typeof columns> = useMemo(
     () => ({
       date: { label: intl.formatMessage({ id: 'auditLogColumnDate', defaultMessage: 'Date' }) },
-      requester: { label: intl.formatMessage({ id: 'auditLogColumnRequester', defaultMessage: 'Requester' }) },
+      requester: { label: intl.formatMessage(messages.requester) },
       action: { label: intl.formatMessage({ id: 'auditLogColumnAction', defaultMessage: 'Action' }) },
       resource: { label: intl.formatMessage({ id: 'auditLogColumnResource', defaultMessage: 'Resource' }) },
       description: { label: intl.formatMessage({ id: 'auditLogColumnDescription', defaultMessage: 'Description' }) },
     }),
+    [intl],
+  );
+
+  const filterConfig: FilterConfig[] = useMemo(
+    () => [
+      {
+        type: 'text',
+        id: 'requester',
+        label: intl.formatMessage(messages.requester),
+        placeholder: intl.formatMessage(messages.filterByRequester),
+      },
+      {
+        type: 'checkbox',
+        id: 'resource',
+        label: intl.formatMessage(messages.resource),
+        options: [
+          { id: 'group', label: intl.formatMessage(messages.group) },
+          { id: 'role', label: intl.formatMessage(messages.role) },
+          { id: 'user', label: intl.formatMessage(messages.userCapitalized) },
+        ],
+      },
+      {
+        type: 'checkbox',
+        id: 'action',
+        label: intl.formatMessage(messages.action),
+        options: [
+          { id: 'add', label: intl.formatMessage(messages.add) },
+          { id: 'create', label: intl.formatMessage(messages.create) },
+          { id: 'delete', label: intl.formatMessage(messages.delete) },
+          { id: 'edit', label: intl.formatMessage(messages.edit) },
+          { id: 'remove', label: intl.formatMessage(messages.remove) },
+        ],
+      },
+    ],
     [intl],
   );
 
@@ -103,6 +152,7 @@ const AuditLog: React.FC = () => {
           totalCount={totalCount}
           getRowId={(row) => row.id}
           cellRenderers={cellRenderers}
+          filterConfig={filterConfig}
           error={errorMessage ? new Error(errorMessage) : null}
           emptyStateNoData={emptyStateNoData}
           emptyStateNoResults={emptyStateNoResults}

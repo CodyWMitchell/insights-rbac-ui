@@ -54,7 +54,6 @@ interface KesselAppEntryWithRouterProps {
   'platform.rbac.workspace-hierarchy'?: boolean;
   'platform.rbac.workspaces-role-bindings'?: boolean;
   'platform.rbac.workspaces-role-bindings-write'?: boolean;
-  'platform.rbac.workspaces-organization-management'?: boolean;
   'platform.rbac.overview'?: boolean;
   'platform.rbac.group-service-accounts'?: boolean;
   'platform.rbac.group-service-accounts.stable'?: boolean;
@@ -108,15 +107,13 @@ export const createDynamicEnvironment = (args: KesselAppEntryWithRouterProps) =>
   // Derive write capability from permissions (has any :write or :* permission)
   const hasWritePermissions = permissions.some((p) => p.includes(':write') || p.includes(':*') || p === 'rbac:*:*');
 
-  // Default workspace IDs from the fixtures - used by useSelfAccessCheck mock.
-  // Includes all IDs in defaultWorkspaces: root-1, default-1, ws-1, ws-2, ws-3.
-  const DEFAULT_WORKSPACE_IDS = ['root-1', 'default-1', 'ws-1', 'ws-2', 'ws-3'];
+  // '*' wildcard grants all workspace IDs (including dynamically created ones).
   const allGranted = {
-    view: DEFAULT_WORKSPACE_IDS,
-    edit: DEFAULT_WORKSPACE_IDS,
-    delete: DEFAULT_WORKSPACE_IDS,
-    create: DEFAULT_WORKSPACE_IDS,
-    move: DEFAULT_WORKSPACE_IDS,
+    view: ['*'],
+    edit: ['*'],
+    delete: ['*'],
+    create: ['*'],
+    move: ['*'],
   };
   const allDenied = { view: [], edit: [], delete: [], create: [], move: [] };
   // Use explicit override if provided; otherwise derive from write permissions.
@@ -184,7 +181,6 @@ export const createDynamicEnvironment = (args: KesselAppEntryWithRouterProps) =>
       'platform.rbac.workspace-hierarchy': args['platform.rbac.workspace-hierarchy'] ?? false,
       'platform.rbac.workspaces-role-bindings': args['platform.rbac.workspaces-role-bindings'] ?? false,
       'platform.rbac.workspaces-role-bindings-write': args['platform.rbac.workspaces-role-bindings-write'] ?? false,
-      'platform.rbac.workspaces-organization-management': args['platform.rbac.workspaces-organization-management'] ?? false,
       'platform.rbac.overview': args['platform.rbac.overview'] ?? true,
       'platform.rbac.group-service-accounts': args['platform.rbac.group-service-accounts'] ?? false,
       'platform.rbac.group-service-accounts.stable': args['platform.rbac.group-service-accounts.stable'] ?? false,

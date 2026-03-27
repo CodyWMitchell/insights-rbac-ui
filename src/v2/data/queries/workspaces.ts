@@ -178,6 +178,7 @@ export function useCreateWorkspaceMutation(options?: MutationOptions) {
         return response.data;
       },
       onSuccess: (_, variables) => {
+        if (options?.deferSuccessSideEffects) return;
         qc.invalidateQueries({ queryKey: workspacesKeys.all });
         notify('success', intl.formatMessage(messages.createWorkspaceSuccessTitle, { name: variables.name }));
       },
@@ -369,10 +370,20 @@ export function useGrantAccessMutation(options?: MutationOptions) {
 
   return useMutation(
     {
-      mutationFn: async ({ workspaceId, groupIds, roleIds }: { workspaceId: string; groupIds: string[]; roleIds: string[] }) => {
+      mutationFn: async ({
+        workspaceId,
+        groupIds,
+        roleIds,
+        resourceType = 'workspace',
+      }: {
+        workspaceId: string;
+        groupIds: string[];
+        roleIds: string[];
+        resourceType?: 'workspace' | 'tenant';
+      }) => {
         const requests = groupIds.flatMap((groupId) =>
           roleIds.map((roleId) => ({
-            resource: { id: workspaceId, type: 'workspace' },
+            resource: { id: workspaceId, type: resourceType },
             subject: { id: groupId, type: 'group' as const },
             role: { id: roleId },
           })),

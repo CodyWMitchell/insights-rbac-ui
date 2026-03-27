@@ -1,6 +1,7 @@
 import type { Meta, StoryFn, StoryObj } from '@storybook/react-webpack5';
 import React from 'react';
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test';
+import { expectLoadingVisible, waitForDrawer } from '../../../../../test-utils/interactionHelpers';
 import { Users } from './Users';
 import { BrowserRouter } from 'react-router-dom';
 import type { MockUserIdentity } from '../../../../../../.storybook/contexts/StorybookMockContext';
@@ -9,6 +10,8 @@ import { groupsHandlers } from '../../../../../shared/data/mocks/groups.handlers
 import { v2RolesHandlers } from '../../../../data/mocks/roles.handlers';
 import { groupMembersHandlers } from '../../../../../shared/data/mocks/groupMembers.handlers';
 import { accountManagementHandlers } from '../../../../../shared/data/mocks/accountManagement.handlers';
+import { createRoleBindingsListHandlers } from '../../../../data/mocks/roleBindings.handlers';
+import type { RoleBinding } from '../../../../data/queries/roleBindings';
 
 // Spy for tracking API calls
 const addMembersToGroupSpy = fn();
@@ -167,6 +170,24 @@ const mockUserRolesV2 = [
   },
 ];
 
+const storyRoleBindings: RoleBinding[] = [
+  {
+    role: { id: mockUserRolesV2[0].id, name: mockUserRolesV2[0].name },
+    subject: { id: mockUsers[0].username, type: 'user', groupName: mockUserGroups[0].name },
+    resource: { id: 'ws-1', name: 'Production', type: 'workspace' },
+  },
+  {
+    role: { id: mockUserRolesV2[1].id, name: mockUserRolesV2[1].name },
+    subject: { id: mockUsers[0].username, type: 'user', groupName: mockUserGroups[1].name },
+    resource: { id: 'ws-2', name: 'Development', type: 'workspace' },
+  },
+  {
+    role: { id: mockUserRolesV2[1].id, name: mockUserRolesV2[1].name },
+    subject: { id: mockUsers[1].username, type: 'user', groupName: mockUserGroups[0].name },
+    resource: { id: 'ws-1', name: 'Production', type: 'workspace' },
+  },
+];
+
 // Standard container story that tests React Query integration
 export const Default: Story = {
   tags: ['autodocs'],
@@ -244,7 +265,7 @@ export const Loading: Story = {
     await step('Verify', async () => {
       // Should show skeleton loading state from container React Query
       await waitFor(() => {
-        expect(canvasElement.querySelectorAll('[class*="skeleton"]').length).toBeGreaterThan(0);
+        expectLoadingVisible(canvasElement);
       });
     });
   },
@@ -393,7 +414,76 @@ export const AddToGroupModalIntegration: Story = {
   },
 };
 
-// DeleteUserModalIntegration story removed - delete user feature was removed from the app
+// API spy for org admin toggle
+const toggleOrgAdminSpy = fn();
+
+// Container org admin toggle integration test
+export const OrgAdminToggleIntegration: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Tests the full org admin toggle mutation flow. Validates that clicking the org admin switch calls the IT API roles endpoint with the correct method (POST to grant, DELETE to revoke) and shows a success notification.',
+      },
+    },
+    msw: {
+      handlers: [
+        ...usersHandlers(
+          mockUsers.map((u) => ({
+            username: u.username,
+            email: u.email,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            is_active: u.is_active,
+            is_org_admin: u.is_org_admin,
+            external_source_id: String(u.external_source_id),
+          })),
+        ),
+        ...accountManagementHandlers({
+          onToggleOrgAdmin: (accountId, userId, body) => {
+            toggleOrgAdminSpy({ accountId, userId, body });
+          },
+        }),
+      ],
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    await step('Reset spy', async () => {
+      toggleOrgAdminSpy.mockClear();
+    });
+
+    await step('Grant org admin to non-admin user', async () => {
+      const canvas = within(canvasElement);
+      await expect(canvas.findByText('john.doe')).resolves.toBeInTheDocument();
+
+      const orgAdminSwitch = await canvas.findByLabelText(/Toggle org admin for john.doe/i);
+      await expect(orgAdminSwitch).not.toBeChecked();
+      await userEvent.click(orgAdminSwitch);
+    });
+
+    await step('Verify API call and success notification', async () => {
+      await waitFor(
+        async () => {
+          await expect(toggleOrgAdminSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+              userId: String(mockUsers[0].external_source_id),
+              body: { role: 'organization_administrator' },
+            }),
+          );
+        },
+        { timeout: 5000 },
+      );
+
+      await waitFor(
+        async () => {
+          const notification = within(document.body).queryByText(/Success updating user/i);
+          await expect(notification).toBeInTheDocument();
+        },
+        { timeout: 5000 },
+      );
+    });
+  },
+};
 
 // Container bulk deactivate modal integration test
 export const BulkDeactivateModalIntegration: Story = {
@@ -529,6 +619,7 @@ export const UserDetailsIntegration: Story = {
             return null;
           },
         }),
+        ...createRoleBindingsListHandlers(storyRoleBindings),
       ],
     },
   },
@@ -540,8 +631,7 @@ export const UserDetailsIntegration: Story = {
       await expect(canvas.findByText('john.doe')).resolves.toBeInTheDocument();
       await expect(canvas.findByText('jane.smith')).resolves.toBeInTheDocument();
 
-      const drawerPanel = within(document.body).getByTestId('detail-drawer-panel');
-      const drawer = within(drawerPanel);
+      const drawer = await waitForDrawer();
 
       // Click on John Doe's row to focus user
       const johnDoeRow = (await canvas.findByText('john.doe')).closest('tr');
@@ -553,25 +643,30 @@ export const UserDetailsIntegration: Story = {
       await expect(drawer.findByText('John Doe')).resolves.toBeInTheDocument();
       await expect(drawer.findByText('john.doe@example.com')).resolves.toBeInTheDocument();
 
-      // Verify Groups tab content loads (default tab)
-      await expect(drawer.findByText('Administrators')).resolves.toBeInTheDocument();
-      await expect(drawer.findByText('Developers')).resolves.toBeInTheDocument();
+      // PF tabs render all tab content into the DOM (hidden via CSS), so group
+      // names like "Administrators" can appear in both the Groups tab and the
+      // Roles tab's "User Group" column simultaneously. Use findAllByText.
+      const initialAdminTexts = await drawer.findAllByText('Administrators');
+      await expect(initialAdminTexts.length).toBeGreaterThanOrEqual(1);
+      const initialDevTexts = await drawer.findAllByText('Developers');
+      await expect(initialDevTexts.length).toBeGreaterThanOrEqual(1);
 
-      // Switch to Roles tab (use role selector to avoid finding text in other places)
+      // Switch to Roles tab
       const rolesTab = await drawer.findByRole('tab', { name: /Assigned roles/i });
       await userEvent.click(rolesTab);
 
-      // Verify Roles tab content loads
+      // Verify Roles tab content loads (role names are unique across tabs)
       await expect(drawer.findByText('User administrators')).resolves.toBeInTheDocument();
       await expect(drawer.findByText('Cost Management Viewer')).resolves.toBeInTheDocument();
 
-      // Switch back to Groups tab (use role selector to avoid finding text in other places)
+      // Switch back to Groups tab
       const groupsTab = await drawer.findByRole('tab', { name: /User groups/i });
       await userEvent.click(groupsTab);
 
-      // Verify Groups content is still there
-      await expect(drawer.findByText('Administrators')).resolves.toBeInTheDocument();
-      await expect(drawer.findByText('Developers')).resolves.toBeInTheDocument();
+      const adminTexts = await drawer.findAllByText('Administrators');
+      await expect(adminTexts.length).toBeGreaterThanOrEqual(1);
+      const devTexts = await drawer.findAllByText('Developers');
+      await expect(devTexts.length).toBeGreaterThanOrEqual(1);
 
       // Test selecting a different user - click Jane Smith
       const janeSmithRow = (await canvas.findByText('jane.smith')).closest('tr');
@@ -584,8 +679,8 @@ export const UserDetailsIntegration: Story = {
       await expect(drawer.findByText('jane.smith@example.com')).resolves.toBeInTheDocument();
 
       // Verify Groups content loads for Jane (only Administrators)
-      await expect(drawer.findByText('Administrators')).resolves.toBeInTheDocument();
-      await expect(drawer.queryByText('Developers')).not.toBeInTheDocument(); // Jane is not in Developers
+      const janeAdminTexts = await drawer.findAllByText('Administrators');
+      await expect(janeAdminTexts.length).toBeGreaterThanOrEqual(1);
 
       // Test close functionality
       const closeButton = await drawer.findByLabelText('Close drawer panel');

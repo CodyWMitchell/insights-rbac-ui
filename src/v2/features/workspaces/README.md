@@ -11,8 +11,8 @@ Workspace management for the new Access Management model. Workspaces are hierarc
 - `workspace-detail/` — detail view for a single workspace showing its role bindings and group assignments
   - `components/GroupDetailsDrawer` — slide-in drawer with group member and role details
   - `components/BaseGroupAssignmentsTable` — shared table for group→role binding display (also used by `organization-management`)
-  - `components/RoleAccessModal` — route-driven modal (`role-access/:groupId`, child of workspace-detail) for editing which roles a group has in a workspace. Split into route wrapper (`RoleAccessModal` — fetches group, workspace, roles, bindings) and pure UI (`RoleAccessModalContent` — `useTableState` over the in-memory roles list). Calls `useUpdateGroupRolesMutation` on save.
-- `create-workspace/` — wizard for creating a new workspace under a parent
+  - `components/RoleAccessModal` — route-driven modal (`role-access/:groupId`, child of workspace-detail) for editing which roles a group has in a workspace. Split into route wrapper (`RoleAccessModal` — fetches group, workspace, roles, bindings) and pure UI (`RoleAccessModalContent` — `useTableState` over the in-memory roles list). Calls `useUpdateGroupRolesMutation` on save. **Route-level authz (RHCLOUD-46138):** protected by `v2WorkspaceGuard('create')` in `Routing.tsx` (separate from the `edit-workspace` route which uses `v2WorkspaceGuard('edit')`). The guard ensures the Kessel `/checkselfbulk` resolves before the modal renders, preventing 403s from V2 API calls racing SpiceDB propagation. The modal itself has no permission check — all authz is in the route guard.
+- `create-workspace/` — wizard for creating a new workspace under a parent. After the POST succeeds, a **progress modal** (`WaitForWorkspaceReady`) polls the Kessel `/checkselfbulk` endpoint every 1s for all 5 workspace relations (`view`, `edit`, `delete`, `create`, `move`). SpiceDB replication can cause permission checks to flap (returning `true` then `false` before settling), so the modal requires **5 consecutive** "all allowed" responses (`CONSECUTIVE_SUCCESS_THRESHOLD`) before declaring the workspace ready. Only once the threshold is met does the user see the success state and navigate back. The `useWorkspaceReadyCheck` hook drives the polling; the mutation uses `deferSuccessSideEffects` to delay cache invalidation and the success notification until the user clicks "Close".
 - `grant-access/` — modal for granting a group access to a workspace by selecting a role
 - `components/managed-selector/` — the **federated workspace selector** component, exposed via module federation for use in other console apps. Has its own Zustand store for selection state.
 - `hooks/` — workspace-specific hooks (e.g. `useWorkspacesFlag`)
@@ -25,7 +25,7 @@ All fetching uses hooks from `src/data/queries/workspaces.ts`. See `workspacesKe
 
 ## Permission model
 
-V2 uses **Kessel domain hooks** from `src/v2/hooks/useRbacAccess.ts`, not V1 patterns (`useAccessPermissions`, `useUserData`, `orgAdmin`). Permissions are resolved per workspace, per relation.
+V2 uses **Kessel domain hooks** from `src/v2/hooks/useRbacAccess.ts`, not V1 patterns. Chrome identity (`orgAdmin`) comes from `useIdentity` (shared). Permissions are resolved per workspace, per relation.
 
 - **`useWorkspaceTenantAccess()`** — tenant-level workspace permissions (view, edit, create, delete, move); fetches org ID internally
 - **`useRoleBindingsAccess(workspaceId)`** — role binding operations (view, grant, revoke, update)
@@ -47,11 +47,25 @@ permissionsFor(ws.id)           // → WorkspacePermissions record
 hasPermission(ws.id, 'delete')  // → boolean
 ```
 
+**Workspace-type constraints (RHCLOUD-39826):** `useWorkspacePermissions` applies workspace-type constraints on top of Kessel results before exposing permissions to consumers. Kessel doesn't model type-based constraints, so the hook acts as defense-in-depth:
+
+| Type | view | edit | create | move | delete |
+|------|------|------|--------|------|--------|
+| root | yes | **no** | yes | **no** | **no** |
+| default | yes | yes | yes | **no** | **no** |
+| ungrouped-hosts | yes | **no** | **no** | **no** | **no** |
+| standard | yes | yes | yes | yes | yes |
+
+The rules are defined in `workspaceTypes.ts` (`canEditType`, `canMoveType`, `canDeleteType`, `canCreateInType`) and applied inside the hook's `allowedIds` memo. Consumers (list table, detail page, etc.) do not need their own type guards — `hasPermission()` and `permissionsFor()` already return the correct answer.
+
+**Feature flag bypass:** When `platform.rbac.workspaces.trust-kessel-permissions` is **ON**, the hook skips type-constraint filtering and trusts Kessel as the sole authority — `hasPermission()` returns raw Kessel results. When **OFF** (default), the defense-in-depth filtering above is applied. Flip the flag once the backend enforces these constraints natively.
+
 **Propagation (PR1 — Kessel Permission Guards):** Permissions are now checked across all workspace surfaces:
 - **List table:** name link gated on `view`, row actions use correct per-action relations (`edit` for edit, `move` for move, `delete` for delete, `create` for sub-workspace)
 - **Create workspace:** parent selector passes `requiredPermission="create"` to `ManagedWorkspaceSelector`
-- **Detail page:** renders `<UnauthorizedAccess>` when `view` is denied; `WorkspaceActions` menu items disabled per relation
-- **Edit modal:** redirects if `edit` permission is denied (direct URL guard)
+- **Detail page:** renders `<UnauthorizedAccess>` when `view` is denied; `WorkspaceActions` menu items disabled per relation; delete calls `useDeleteWorkspaceMutation` and navigates to list; move uses `MoveWorkspaceDialog` + `useMoveWorkspaceMutation`; create-subworkspace navigates to wizard with pre-selected parent; hierarchy breadcrumb gates links on `view` permission
+- **Edit modal:** protected by `v2WorkspaceGuard('edit')` route guard in Routing.tsx
+- **Role access modal (Edit access):** protected by `v2WorkspaceGuard('create')` route guard in Routing.tsx (separate from the edit-workspace guard)
 
 **Role binding permission mapping (MVP):**
 
@@ -67,7 +81,7 @@ hasPermission(ws.id, 'delete')  // → boolean
 - **Row kebab "Edit access"** (`BaseGroupAssignmentsTable`): `canEditAccess` prop, gated on `create`
 - **Row kebab "Remove from workspace"** (`BaseGroupAssignmentsTable`): `canRevokeAccess` prop, gated on `delete`
 - **Drawer "Edit access" / "Remove from workspace" buttons** (`GroupDetailsDrawer`): same props, passed through
-- **`RoleAccessModal`** (route-driven): Kessel `create` permission guard — redirects back if denied (direct URL defense)
+- **`RoleAccessModal`** (route-driven): `v2WorkspaceGuard('create')` route guard — renders `<UnauthorizedAccess>` if denied (direct URL defense)
 
 ## Federated modules
 

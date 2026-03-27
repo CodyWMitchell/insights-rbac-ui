@@ -15,6 +15,6 @@ export function createAuditApi(axios: AxiosInstance): AuditApiClient {
 
 export const auditApi = createAuditApi(apiClient);
 
-export type { GetAuditlogsParams, GetAuditlogsOrderByEnum } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
-export { GetAuditlogsOrderByEnum as AuditlogsOrderByEnum } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
+export type { GetAuditlogsParams } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
+export { GetAuditlogsResourceTypeEnum, GetAuditlogsActionEnum } from '@redhat-cloud-services/rbac-client/GetAuditlogs';
 export type { AuditLog, AuditLogPagination } from '@redhat-cloud-services/rbac-client/types';

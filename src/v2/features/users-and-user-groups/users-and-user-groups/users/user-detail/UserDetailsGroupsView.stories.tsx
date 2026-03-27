@@ -6,6 +6,11 @@ import { DataViewEventsProvider } from '@patternfly/react-data-view';
 
 import { UserDetailsGroupsView } from './UserDetailsGroupsView';
 import { groupsErrorHandlers, groupsHandlers, groupsLoadingHandlers } from '../../../../../../shared/data/mocks/groups.handlers';
+import { GROUP_ADMIN_DEFAULT, GROUP_SYSTEM_DEFAULT } from '../../../../../../shared/data/mocks/seed';
+import messages from '../../../../../../Messages';
+
+const ALL_USERS_LABEL = messages.allUsers.defaultMessage;
+const ALL_ORG_ADMINS_LABEL = messages.allOrgAdmins.defaultMessage;
 
 const meta: Meta<typeof UserDetailsGroupsView> = {
   component: UserDetailsGroupsView,
@@ -123,7 +128,7 @@ Each story demonstrates different aspects of container state management and erro
       await expect(canvas.findByText('Development Team')).resolves.toBeInTheDocument();
       await expect(canvas.findByText('Quality Assurance')).resolves.toBeInTheDocument();
 
-      await expect(canvas.findByText('15')).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_ORG_ADMINS_LABEL)).resolves.toBeInTheDocument();
       await expect(canvas.findByText('8')).resolves.toBeInTheDocument();
 
       const grid = await canvas.findByRole('grid');
@@ -241,6 +246,33 @@ export const NetworkFailure: Story = {
 
     await step('Verify network failure state', async () => {
       await expect(canvas.findByText('Unable to load groups', {}, { timeout: 3000 })).resolves.toBeInTheDocument();
+    });
+  },
+};
+
+export const DefaultGroupCounts: Story = {
+  args: {
+    userId: 'john.doe',
+    ouiaId: 'user-groups-view-default-counts',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Default platform and admin groups list with normalized Users column values from `useGroupsQuery` (implicit membership).',
+      },
+    },
+    msw: {
+      handlers: [...groupsHandlers([GROUP_SYSTEM_DEFAULT, GROUP_ADMIN_DEFAULT])],
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Verify normalized default group counts', async () => {
+      await expect(canvas.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_ADMIN_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_USERS_LABEL)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_ORG_ADMINS_LABEL)).resolves.toBeInTheDocument();
     });
   },
 };

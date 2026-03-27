@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import React from 'react';
+import { getSkeletonCount } from '../../../../../test-utils/interactionHelpers';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { MemoryRouter } from 'react-router-dom';
 import { InheritedGroupAssignmentsTable } from './InheritedGroupAssignmentsTable';
@@ -11,6 +12,8 @@ const mockInheritedGroups: InheritedWorkspaceGroupRow[] = [
     name: 'Platform Administrators',
     description: 'Full access to all platform resources and administrative functions',
     userCount: 12,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 2,
     roles: [
       { id: 'role-1', name: 'Workspace Administrator' },
@@ -27,6 +30,8 @@ const mockInheritedGroups: InheritedWorkspaceGroupRow[] = [
     name: 'Development Team',
     description: 'Access to development resources and environments',
     userCount: 25,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 1,
     roles: [{ id: 'role-3', name: 'Developer' }],
     lastModified: '2024-01-18T16:20:00Z',
@@ -40,6 +45,8 @@ const mockInheritedGroups: InheritedWorkspaceGroupRow[] = [
     name: 'QA Engineers',
     description: '',
     userCount: 8,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 1,
     roles: [{ id: 'role-4', name: 'Tester' }],
     lastModified: '2024-01-19T13:30:00Z',
@@ -111,10 +118,10 @@ export const Default: Story = {
 
       // Verify standard columns are present
       await waitFor(async () => {
-        await expect(canvas.getByText('Description')).toBeInTheDocument();
-        await expect(canvas.getByText('Users')).toBeInTheDocument();
-        await expect(canvas.getByText('Roles')).toBeInTheDocument();
-        await expect(canvas.getByText('Last modified')).toBeInTheDocument();
+        await expect(canvas.queryByText('Description')).toBeInTheDocument();
+        await expect(canvas.queryByText('Users')).toBeInTheDocument();
+        await expect(canvas.queryByText('Roles')).toBeInTheDocument();
+        await expect(canvas.queryByText('Last modified')).toBeInTheDocument();
       });
 
       // Verify "Inherited from" column header text (part of the popover label)
@@ -131,9 +138,9 @@ export const Default: Story = {
 
       // Verify inheritance links are rendered
       await waitFor(async () => {
-        const rootWorkspaceLinks = canvas.getAllByText(mockInheritedGroups[0].inheritedFrom!.workspaceName);
+        const rootWorkspaceLinks = canvas.queryAllByText(mockInheritedGroups[0].inheritedFrom!.workspaceName);
         expect(rootWorkspaceLinks.length).toBe(2); // Two groups inherited from Root Workspace
-        await expect(canvas.getByText(mockInheritedGroups[1].inheritedFrom!.workspaceName)).toBeInTheDocument();
+        await expect(canvas.queryByText(mockInheritedGroups[1].inheritedFrom!.workspaceName)).toBeInTheDocument();
       });
     });
   },
@@ -150,9 +157,8 @@ export const LoadingState: Story = {
     const canvas = within(canvasElement);
     await step('Verify loading state', async () => {
       await waitFor(
-        async () => {
-          const skeletonElements = canvasElement.querySelectorAll('[class*="skeleton"]');
-          expect(skeletonElements.length).toBeGreaterThan(0);
+        () => {
+          expect(getSkeletonCount(canvasElement)).toBeGreaterThan(0);
           const loadingElements = canvas.queryAllByText('Platform Administrators');
           expect(loadingElements.length).toBe(0);
         },
@@ -193,9 +199,9 @@ export const InheritanceFilter: Story = {
       await expect(canvas.getByText('Inherited from')).toBeInTheDocument();
 
       await waitFor(async () => {
-        const rootLinks = canvas.getAllByText(mockInheritedGroups[0].inheritedFrom!.workspaceName);
+        const rootLinks = canvas.queryAllByText(mockInheritedGroups[0].inheritedFrom!.workspaceName);
         expect(rootLinks.length).toBe(2);
-        await expect(canvas.getByText(mockInheritedGroups[1].inheritedFrom!.workspaceName)).toBeInTheDocument();
+        await expect(canvas.queryByText(mockInheritedGroups[1].inheritedFrom!.workspaceName)).toBeInTheDocument();
       });
     });
   },
@@ -250,7 +256,7 @@ export const DrawerWithInheritance: Story = {
 
       await waitFor(
         async () => {
-          const tabs = canvas.getAllByRole('tab');
+          const tabs = canvas.queryAllByRole('tab');
           expect(tabs.length).toBeGreaterThanOrEqual(2);
         },
         { timeout: 5000 },

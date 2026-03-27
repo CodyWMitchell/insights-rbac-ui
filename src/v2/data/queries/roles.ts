@@ -25,6 +25,7 @@ import type {
 import messages from '../../../Messages';
 import { useMutationQueryClient } from '../../../shared/data/utils';
 import type { MutationOptions } from '../../../shared/data/types';
+import { roleBindingsKeys } from './workspaces';
 
 // =============================================================================
 // Query Keys Factory
@@ -84,15 +85,25 @@ export function useRolesV2Query(params: RolesV2QueryParams = {}, options?: { ena
  * Fetch all V2 roles (cursor-paginated fetch-all).
  * Useful for role pickers and wizards that need the full list.
  * Uses limit=-1 which the API supports to return all objects.
+ *
+ * `resourceType` and `resourceId` filter roles to those assignable at a
+ * specific resource level (workspace vs tenant).  These are passed as extra
+ * Axios query params until the rbac-client ships first-class support.
  */
-export function useAllRolesV2Query(options?: { enabled?: boolean; name?: string }) {
+export function useAllRolesV2Query(options?: { enabled?: boolean; name?: string; resourceType?: string; resourceId?: string }) {
+  const extraParams: Record<string, string> = {};
+  if (options?.resourceType) extraParams.resource_type = options.resourceType;
+  if (options?.resourceId) extraParams.resource_id = options.resourceId;
+  const hasExtra = Object.keys(extraParams).length > 0;
+
   const params: RolesListParams = {
     limit: -1,
     ...(options?.name && { name: options.name }),
+    ...(hasExtra && { options: { params: extraParams } }),
   };
 
   return useQuery({
-    queryKey: [...rolesV2Keys.lists(), 'all', options?.name] as const,
+    queryKey: [...rolesV2Keys.lists(), 'all', options?.name, options?.resourceType, options?.resourceId] as const,
     queryFn: async (): Promise<Role[]> => {
       const response = await rolesV2Api.rolesList(params);
       return response.data.data;
@@ -139,7 +150,7 @@ export function useRoleAssignmentsQuery(
   },
 ) {
   return useQuery({
-    queryKey: [...rolesV2Keys.all, 'workspace-role-bindings', workspaceId, options?.limit, options?.cursor, options?.excludeSources],
+    queryKey: [...roleBindingsKeys.all, 'workspace-role-bindings', workspaceId, options?.limit, options?.cursor, options?.excludeSources],
     queryFn: async (): Promise<RoleBindingsListBySubject200Response> => {
       const fields = 'last_modified,subject(id,group.name,group.description,group.user_count),roles(id,name),resource(id,name,type)';
 
@@ -163,7 +174,7 @@ export function useRoleAssignmentsQuery(
  */
 export function useRoleUsageQuery(roleId: string, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: [...rolesV2Keys.all, 'role-bindings', roleId],
+    queryKey: [...roleBindingsKeys.all, 'role-bindings', roleId],
     queryFn: async (): Promise<RoleBindingsRoleBinding[]> => {
       const response = await rolesV2Api.roleBindingsList({
         roleId,
@@ -263,6 +274,7 @@ export function useBatchDeleteRolesV2Mutation(options?: MutationOptions) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: rolesV2Keys.all });
+      queryClient.invalidateQueries({ queryKey: roleBindingsKeys.all });
       addNotification({
         variant: 'success',
         title: intl.formatMessage(messages.removeRoleSuccessTitle),

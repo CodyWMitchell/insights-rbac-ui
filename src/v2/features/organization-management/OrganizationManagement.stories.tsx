@@ -1,11 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
-import { expect, waitFor, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { ScopedQueries } from '../../../test-utils/interactionHelpers';
+import { waitForModal } from '../../../test-utils/interactionHelpers';
+import { TEST_TIMEOUTS } from '../../../test-utils/testUtils';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { OrganizationManagement } from './OrganizationManagement';
 import type { MockUserIdentity } from '../../../../.storybook/contexts/StorybookMockContext';
 import { roleBindingsBySubjectResponseHandlers } from '../../data/mocks/roleBindings.handlers';
+import { groupsHandlers } from '../../../shared/data/mocks/groups.handlers';
+import { groupMembersHandlers } from '../../../shared/data/mocks/groupMembers.handlers';
+import { v2RolesHandlers } from '../../data/mocks/roles.handlers';
+import { roleBindingsHandlers } from '../../data/mocks/roleBindings.handlers';
+import { DEFAULT_V2_ROLES, ROLES_BY_RESOURCE_TYPE, V2_ROLE_TENANT_ADMIN } from '../../data/mocks/seed';
+import { GROUP_PLATFORM_ADMINS } from '../../../shared/data/mocks/seed';
+import type { Role } from '../../data/mocks/db';
 
 // Base user identity template for DRY mock data
 const baseUserIdentity: MockUserIdentity = {
@@ -261,36 +270,32 @@ type OrgExpectations = {
   orgId: string;
 };
 
+const PLACEHOLDER = '--';
+
 const expectOrgDetails = async (canvas: ScopedQueries, exp: OrgExpectations) => {
   // Always expect the main heading
   await expect(canvas.findByRole('heading', { name: 'Organization-Wide Access' })).resolves.toBeInTheDocument();
 
-  // Wait for org ID to appear (this indicates useEffect has run)
-  await expect(canvas.findByText(exp.orgId)).resolves.toBeInTheDocument();
+  // Labels are always rendered; wait for org ID label to confirm the component has mounted
+  await expect(canvas.findByText('Organization ID:')).resolves.toBeInTheDocument();
 
-  // Organization name is only shown when available
+  // Organization name label is always shown; value is either the name or the placeholder
+  await expect(canvas.findByText('Organization name:')).resolves.toBeInTheDocument();
   if (exp.name) {
-    await expect(canvas.findByText('Organization name:')).resolves.toBeInTheDocument();
     await expect(canvas.findByText(exp.name)).resolves.toBeInTheDocument();
   } else {
-    // If no organization name, the section should not be rendered at all
-    await waitFor(() => {
-      expect(canvas.queryByText('Organization name:')).not.toBeInTheDocument();
-    });
+    // Multiple placeholders may be present; just assert at least one exists
+    await expect(canvas.findAllByText(PLACEHOLDER)).resolves.not.toHaveLength(0);
   }
 
-  // Check account number
+  // Account number label is always shown; value is either the account or the placeholder
+  await expect(canvas.findByText('Account number:')).resolves.toBeInTheDocument();
   if (exp.account) {
-    await expect(canvas.findByText('Account number:')).resolves.toBeInTheDocument();
     await expect(canvas.findByText(exp.account)).resolves.toBeInTheDocument();
-  } else {
-    await waitFor(() => {
-      expect(canvas.queryByText('Account number:')).not.toBeInTheDocument();
-    });
   }
 
-  // Always check that org ID is present
-  await expect(canvas.findByText('Organization ID:')).resolves.toBeInTheDocument();
+  // Org ID value
+  await expect(canvas.findByText(exp.orgId)).resolves.toBeInTheDocument();
 };
 
 export const Default: Story = {
@@ -318,7 +323,7 @@ export const Default: Story = {
 
       // Wait for table to render (should be empty in default state) - PatternFly uses 'grid' role
       await waitFor(() => {
-        const table = canvas.getByRole('grid');
+        const table = canvas.queryByRole('grid');
         expect(table).toBeInTheDocument();
       });
     });
@@ -350,14 +355,14 @@ export const WithFullOrganizationData: Story = {
 
       // Wait for role bindings table to load - PatternFly uses 'grid' role for interactive tables
       await waitFor(() => {
-        const table = canvas.getByRole('grid');
+        const table = canvas.queryByRole('grid');
         expect(table).toBeInTheDocument();
       });
 
       // Test that role bindings data is displayed
       await waitFor(() => {
         // Check that table rows are present (header + 5 data rows)
-        const rows = canvas.getAllByRole('row');
+        const rows = canvas.queryAllByRole('row');
         expect(rows).toHaveLength(6); // 1 header + 5 data rows
       });
 
@@ -475,7 +480,7 @@ export const WithRoleBindingsTableTest: Story = {
 
       // Wait for organization data to be loaded first (API calls depend on organizationId)
       await waitFor(() => {
-        expect(canvas.getByText('org-987654321')).toBeInTheDocument();
+        expect(canvas.queryByText('org-987654321')).toBeInTheDocument();
       });
 
       // Give the component time to fetch and process role bindings data
@@ -492,13 +497,13 @@ export const WithRoleBindingsTableTest: Story = {
       await waitFor(
         () => {
           // Look for specific data from our mock response
-          expect(canvas.getByText('Engineering Team')).toBeInTheDocument();
+          expect(canvas.queryByText('Engineering Team')).toBeInTheDocument();
         },
         { timeout: 10000 },
       );
 
       // Test table headers are present
-      await expect(canvas.findByText('User group')).resolves.toBeInTheDocument();
+      await expect(canvas.findByText('User group name')).resolves.toBeInTheDocument();
       await expect(canvas.findByText('Description')).resolves.toBeInTheDocument();
 
       // Now test table functionality - all group names should be visible
@@ -558,7 +563,7 @@ export const EmptyRoleBindingsState: Story = {
 
       // Wait for organization data to load first
       await waitFor(() => {
-        expect(canvas.getByText('org-987654321')).toBeInTheDocument();
+        expect(canvas.queryByText('org-987654321')).toBeInTheDocument();
       });
 
       // Wait for empty state to appear
@@ -574,3 +579,90 @@ export const EmptyRoleBindingsState: Story = {
 
 // Note: ErrorState story removed - the mock context doesn't support error simulation.
 // Error handling is tested via unit tests instead.
+
+// --- Grant access stories ---
+
+const tenantRoleIds = new Set(ROLES_BY_RESOURCE_TYPE.tenant);
+function rolesForResource(resourceType: string): Role[] | null {
+  if (resourceType !== 'tenant') return null;
+  return DEFAULT_V2_ROLES.filter((r) => tenantRoleIds.has(r.id!));
+}
+
+const onListSpy = fn();
+
+export const GrantAccessWizard: Story = {
+  name: 'Grant organization-wide access',
+  tags: ['ff:platform.rbac.workspaces-role-bindings-write'],
+  parameters: {
+    userIdentity: mockUserWithAllData,
+    featureFlags: { 'platform.rbac.workspaces-role-bindings-write': true },
+    msw: {
+      handlers: [
+        ...roleBindingsBySubjectResponseHandlers(mockRoleBindingsResponse),
+        ...groupsHandlers(),
+        ...groupMembersHandlers({}, {}),
+        ...v2RolesHandlers(undefined, { onList: onListSpy, rolesForResource: (rt) => rolesForResource(rt) }),
+        ...roleBindingsHandlers(),
+      ],
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    onListSpy.mockClear();
+
+    await step('Verify grant access button is present for org admin', async () => {
+      await expect(canvas.findByRole('heading', { name: 'Organization-Wide Access' })).resolves.toBeInTheDocument();
+
+      await waitFor(
+        () => {
+          const grantBtn = canvas.queryByRole('button', { name: /grant access/i });
+          expect(grantBtn).toBeInTheDocument();
+        },
+        { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
+      );
+    });
+
+    await step('Open grant access wizard', async () => {
+      const grantBtn = canvas.getByRole('button', { name: /grant access/i });
+      await user.click(grantBtn);
+
+      const modal = await waitForModal();
+      await expect(modal.findByText(/grant organization-wide access/i)).resolves.toBeInTheDocument();
+    });
+
+    await step('Select a group and advance to roles step', async () => {
+      const modal = await waitForModal();
+
+      await waitFor(
+        () => {
+          expect(modal.queryByText(GROUP_PLATFORM_ADMINS.name)).toBeInTheDocument();
+        },
+        { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
+      );
+
+      const groupRow = (await modal.findByText(GROUP_PLATFORM_ADMINS.name)).closest('tr') as HTMLElement;
+      await user.click(within(groupRow).getByRole('checkbox'));
+
+      await waitFor(() => {
+        expect(modal.queryByRole('button', { name: /^next$/i })).toBeEnabled();
+      });
+      await user.click(modal.getByRole('button', { name: /^next$/i }));
+      await expect(modal.findByRole('heading', { name: /select role\(s\)/i })).resolves.toBeInTheDocument();
+    });
+
+    await step('Only tenant-level roles are shown', async () => {
+      const modal = await waitForModal();
+      await expect(modal.findByText(V2_ROLE_TENANT_ADMIN.name!)).resolves.toBeInTheDocument();
+    });
+
+    await step('API was called with resource_type=tenant', async () => {
+      await waitFor(() => {
+        expect(onListSpy).toHaveBeenCalled();
+        const lastCall = onListSpy.mock.calls[onListSpy.mock.calls.length - 1];
+        const params = lastCall[0] as URLSearchParams;
+        expect(params.get('resource_type')).toBe('tenant');
+      });
+    });
+  },
+};

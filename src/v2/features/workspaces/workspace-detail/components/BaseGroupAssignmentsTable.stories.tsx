@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import React from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { clearAndType, getSkeletonCount, queryDialog } from '../../../../../test-utils/interactionHelpers';
 import { MemoryRouter } from 'react-router-dom';
 import { BaseGroupAssignmentsTable } from './BaseGroupAssignmentsTable';
 import type { WorkspaceGroupRow } from '../../../../data/queries/groupAssignments';
@@ -14,6 +15,8 @@ const mockGroups: WorkspaceGroupRow[] = [
     name: 'Platform Administrators',
     description: 'Full access to all platform resources and administrative functions',
     userCount: 12,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 2,
     roles: [
       { id: 'role-1', name: 'Administrator' },
@@ -26,6 +29,8 @@ const mockGroups: WorkspaceGroupRow[] = [
     name: 'Development Team',
     description: 'Access to development resources and environments',
     userCount: 25,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 2,
     roles: [
       { id: 'role-3', name: 'Developer' },
@@ -38,6 +43,8 @@ const mockGroups: WorkspaceGroupRow[] = [
     name: 'QA Engineers',
     description: '',
     userCount: 8,
+    isDefaultGroup: false,
+    isAdminDefault: false,
     roleCount: 1,
     roles: [{ id: 'role-5', name: 'Tester' }],
     lastModified: '2024-01-19T13:30:00Z',
@@ -103,10 +110,10 @@ export const Default: Story = {
       await expect(table).toBeInTheDocument();
 
       await waitFor(async () => {
-        await expect(canvas.getByText('Description')).toBeInTheDocument();
-        await expect(canvas.getByText('Users')).toBeInTheDocument();
-        await expect(canvas.getByText('Roles')).toBeInTheDocument();
-        await expect(canvas.getByText('Last modified')).toBeInTheDocument();
+        await expect(canvas.queryByText('Description')).toBeInTheDocument();
+        await expect(canvas.queryByText('Users')).toBeInTheDocument();
+        await expect(canvas.queryByText('Roles')).toBeInTheDocument();
+        await expect(canvas.queryByText('Last modified')).toBeInTheDocument();
       });
 
       await expect(canvas.findByText('Platform Administrators')).resolves.toBeInTheDocument();
@@ -130,9 +137,8 @@ export const LoadingState: Story = {
     const canvas = within(canvasElement);
     await step('Verify loading state', async () => {
       await waitFor(
-        async () => {
-          const skeletonElements = canvasElement.querySelectorAll('[class*="skeleton"]');
-          expect(skeletonElements.length).toBeGreaterThan(0);
+        () => {
+          expect(getSkeletonCount(canvasElement)).toBeGreaterThan(0);
           const loadingElements = canvas.queryAllByText('Platform Administrators');
           expect(loadingElements.length).toBe(0);
         },
@@ -208,7 +214,7 @@ export const DrawerInteraction: Story = {
 
       await waitFor(
         async () => {
-          const tabs = canvas.getAllByRole('tab');
+          const tabs = canvas.queryAllByRole('tab');
           expect(tabs.length).toBeGreaterThanOrEqual(2);
           const tabTexts = tabs.map((tab) => tab.textContent?.toLowerCase() || '');
           expect(tabTexts.some((text) => text.includes('role'))).toBeTruthy();
@@ -226,7 +232,7 @@ export const DrawerInteraction: Story = {
       );
 
       await waitFor(async () => {
-        const tabs = canvas.getAllByRole('tab');
+        const tabs = canvas.queryAllByRole('tab');
         const usersTab = tabs.find((tab) => tab.textContent?.toLowerCase().includes('user'));
         expect(usersTab).toBeTruthy();
         if (usersTab) await userEvent.click(usersTab);
@@ -261,7 +267,7 @@ const WORKSPACE_ARGS = {
   totalCount: mockGroups.length,
   isLoading: false,
   workspaceName: 'Test Workspace',
-  currentWorkspace: { id: 'ws-test', name: 'Test Workspace' },
+  currentWorkspace: { id: 'ws-test', name: 'Test Workspace', type: 'workspace' as const },
 } as const;
 
 export const RowActionsEnabled: Story = {
@@ -284,14 +290,14 @@ export const RowActionsEnabled: Story = {
 
       const firstGroupRow = await canvas.findByText(mockGroups[0].name);
       const row = firstGroupRow.closest('tr') as HTMLElement;
-      const kebab = within(row).getByLabelText(`Actions for ${mockGroups[0].name}`);
+      const kebab = within(row).getByLabelText(new RegExp(`actions for ${mockGroups[0].name}`, 'i'));
       await userEvent.click(kebab);
 
       const body = within(document.body);
-      const editItem = await body.findByText(/edit access for this workspace/i);
+      const editItem = await body.findByText(/^edit access$/i);
       await expect(editItem.closest('button')).not.toHaveAttribute('disabled');
 
-      const removeItem = await body.findByText(/remove from workspace/i);
+      const removeItem = await body.findByText(/^remove access$/i);
       await expect(removeItem.closest('button')).not.toHaveAttribute('disabled');
     });
   },
@@ -317,14 +323,14 @@ export const RowActionsDisabledByPermission: Story = {
 
       const firstGroupRow = await canvas.findByText(mockGroups[0].name);
       const row = firstGroupRow.closest('tr') as HTMLElement;
-      const kebab = within(row).getByLabelText(`Actions for ${mockGroups[0].name}`);
+      const kebab = within(row).getByLabelText(new RegExp(`actions for ${mockGroups[0].name}`, 'i'));
       await userEvent.click(kebab);
 
       const body = within(document.body);
-      const editItem = await body.findByText(/edit access for this workspace/i);
+      const editItem = await body.findByText(/^edit access$/i);
       await expect(editItem.closest('button')).toHaveAttribute('disabled');
 
-      const removeItem = await body.findByText(/remove from workspace/i);
+      const removeItem = await body.findByText(/^remove access$/i);
       await expect(removeItem.closest('button')).toHaveAttribute('disabled');
     });
   },
@@ -350,14 +356,14 @@ export const EditAccessDisabledRevokeEnabled: Story = {
 
       const firstGroupRow = await canvas.findByText(mockGroups[0].name);
       const row = firstGroupRow.closest('tr') as HTMLElement;
-      const kebab = within(row).getByLabelText(`Actions for ${mockGroups[0].name}`);
+      const kebab = within(row).getByLabelText(new RegExp(`actions for ${mockGroups[0].name}`, 'i'));
       await userEvent.click(kebab);
 
       const body = within(document.body);
-      const editItem = await body.findByText(/edit access for this workspace/i);
+      const editItem = await body.findByText(/^edit access$/i);
       await expect(editItem.closest('button')).toHaveAttribute('disabled');
 
-      const removeItem = await body.findByText(/remove from workspace/i);
+      const removeItem = await body.findByText(/^remove access$/i);
       await expect(removeItem.closest('button')).not.toHaveAttribute('disabled');
     });
   },
@@ -466,10 +472,10 @@ export const GrantAccessWizardTest: Story = {
       const table = await canvas.findByRole('grid');
       await expect(table).toBeInTheDocument();
 
-      let grantAccessButton: HTMLElement;
+      let grantAccessButton: HTMLElement | null = null;
       await waitFor(
         async () => {
-          grantAccessButton = canvas.getByRole('button', { name: /grant access/i });
+          grantAccessButton = canvas.queryByRole('button', { name: /grant access/i });
           await expect(grantAccessButton).toBeInTheDocument();
           await expect(grantAccessButton).toBeEnabled();
         },
@@ -480,10 +486,10 @@ export const GrantAccessWizardTest: Story = {
 
       await waitFor(
         async () => {
-          const wizardModal = document.querySelector('[role="dialog"]');
+          const wizardModal = queryDialog();
           expect(wizardModal).toBeInTheDocument();
-          const modalContent = within(wizardModal as HTMLElement);
-          await expect(modalContent.getByText(/grant access in workspace test workspace/i)).toBeInTheDocument();
+          const modalContent = within(wizardModal!);
+          await expect(modalContent.queryByText(/grant access in workspace test workspace/i)).toBeInTheDocument();
         },
         { timeout: 5000 },
       );
@@ -491,8 +497,9 @@ export const GrantAccessWizardTest: Story = {
       // Cancel the wizard
       await waitFor(
         async () => {
-          const wizardModal = document.querySelector('[role="dialog"]') as HTMLElement;
-          const allButtons = wizardModal.querySelectorAll('button');
+          const wizardModal = queryDialog();
+          expect(wizardModal).toBeInTheDocument();
+          const allButtons = wizardModal!.querySelectorAll('button');
           let cancelButton: HTMLButtonElement | null = null;
           for (const button of allButtons) {
             const buttonText = button.textContent?.toLowerCase() || '';
@@ -510,13 +517,63 @@ export const GrantAccessWizardTest: Story = {
 
       await waitFor(
         async () => {
-          const wizardModal = document.querySelector('[role="dialog"]');
+          const wizardModal = queryDialog();
           expect(wizardModal).not.toBeInTheDocument();
         },
         { timeout: 3000 },
       );
 
       await expect(canvas.findByRole('button', { name: /grant access/i })).resolves.toBeInTheDocument();
+    });
+  },
+};
+
+const GROUP_PLATFORM = mockGroups[0];
+const GROUP_DEV = mockGroups[1];
+const GROUP_QA = mockGroups[2];
+
+/**
+ * Tests client-side filtering by group name.
+ */
+export const FilterByGroupName: Story = {
+  args: {
+    groups: mockGroups,
+    totalCount: mockGroups.length,
+    isLoading: false,
+    ouiaId: 'role-assignments-table',
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await step('Type partial name and verify rows narrow', async () => {
+      await clearAndType(user, () => canvas.getByPlaceholderText(/filter by user group/i) as HTMLInputElement, 'Platform');
+      await expect(canvas.findByText(GROUP_PLATFORM.name)).resolves.toBeInTheDocument();
+      await waitFor(() => {
+        expect(canvas.queryByText(GROUP_DEV.name)).not.toBeInTheDocument();
+        expect(canvas.queryByText(GROUP_QA.name)).not.toBeInTheDocument();
+      });
+    });
+
+    await step('Clear filter and verify all rows return', async () => {
+      const filterInput = await canvas.findByPlaceholderText(/filter by user group/i);
+      await user.clear(filterInput);
+      await expect(canvas.findByText(GROUP_PLATFORM.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_DEV.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_QA.name)).resolves.toBeInTheDocument();
+    });
+
+    await step('Filter is case-insensitive', async () => {
+      await clearAndType(user, () => canvas.getByPlaceholderText(/filter by user group/i) as HTMLInputElement, 'qa');
+      await expect(canvas.findByText(GROUP_QA.name)).resolves.toBeInTheDocument();
+      await waitFor(() => {
+        expect(canvas.queryByText(GROUP_PLATFORM.name)).not.toBeInTheDocument();
+      });
+    });
+
+    await step('No-match shows empty state', async () => {
+      await clearAndType(user, () => canvas.getByPlaceholderText(/filter by user group/i) as HTMLInputElement, 'zzz-nonexistent');
+      await expect(canvas.findByText('No user group found')).resolves.toBeInTheDocument();
     });
   },
 };

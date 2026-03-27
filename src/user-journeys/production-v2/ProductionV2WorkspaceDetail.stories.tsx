@@ -119,7 +119,7 @@ Tests workspace detail pages with the Roles tab, including group drawer and pare
       const drawer = await waitForDrawer();
       await drawer.findByRole('heading', { name: KESSEL_GROUP_PROD_ADMINS.name });
 
-      await expect(drawer.findByRole('button', { name: /edit access for this workspace/i })).resolves.toBeInTheDocument();
+      await expect(canvas.findByRole('button', { name: /edit access for this workspace/i })).resolves.toBeInTheDocument();
 
       const rolesTab = await drawer.findByRole('tab', { name: /^roles$/i });
       const usersTab = await drawer.findByRole('tab', { name: /^users$/i });
@@ -286,7 +286,7 @@ End-to-end flow for granting access to a workspace via the 3-step wizard.
       await user.click(submitButton);
 
       await waitFor(() => {
-        const addressBar = canvas.getByTestId('fake-address-bar');
+        const addressBar = canvas.queryByTestId('fake-address-bar');
         expect(addressBar).toHaveTextContent(/workspaces/i);
       });
 
@@ -307,6 +307,10 @@ End-to-end flow for granting access to a workspace via the 3-step wizard.
         },
         { timeout: TEST_TIMEOUTS.NOTIFICATION_WAIT },
       );
+    });
+
+    await step('Verify new binding is visible in the table', async () => {
+      await expect(canvas.findByText(KESSEL_GROUP_DEV_TEAM.name, {}, { timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH })).resolves.toBeInTheDocument();
     });
   },
 };
@@ -364,7 +368,7 @@ End-to-end flow for removing a group's access via the kebab menu.
       await user.click(kebabButton);
 
       const body = within(document.body);
-      const removeItem = await body.findByText(/remove from workspace/i);
+      const removeItem = await body.findByText(/^remove access$/i);
       await user.click(removeItem);
     });
 
@@ -400,6 +404,16 @@ End-to-end flow for removing a group's access via the kebab menu.
           body: expect.objectContaining({ roles: [] }),
         }),
       );
+    });
+
+    await step('Verify removed group is gone from table', async () => {
+      await waitFor(
+        () => {
+          expect(canvas.queryByText(KESSEL_GROUP_VIEWERS.name)).not.toBeInTheDocument();
+        },
+        { timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH },
+      );
+      await expect(canvas.findByText(KESSEL_GROUP_PROD_ADMINS.name)).resolves.toBeInTheDocument();
     });
   },
 };
@@ -498,7 +512,7 @@ A lighter variation of the Grant Access wizard with one group and one role.
       await user.click(submitButton);
 
       await waitFor(() => {
-        const addressBar = canvas.getByTestId('fake-address-bar');
+        const addressBar = canvas.queryByTestId('fake-address-bar');
         expect(addressBar).toHaveTextContent(/workspaces/i);
       });
 
@@ -519,6 +533,10 @@ A lighter variation of the Grant Access wizard with one group and one role.
         },
         { timeout: TEST_TIMEOUTS.NOTIFICATION_WAIT },
       );
+    });
+
+    await step('Verify new binding is visible in the table', async () => {
+      await expect(canvas.findByText(KESSEL_GROUP_MARKETING.name, {}, { timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH })).resolves.toBeInTheDocument();
     });
   },
 };
@@ -621,7 +639,7 @@ Complete flow for editing role access via the RoleAccessModal.
       );
 
       await waitFor(() => {
-        const addressBar = canvas.getByTestId('fake-address-bar');
+        const addressBar = canvas.queryByTestId('fake-address-bar');
         expect(addressBar).toHaveTextContent(/workspaces\/detail/i);
       });
     });
@@ -716,7 +734,7 @@ Same flow as EditRoleAccess but for the Viewers group.
       );
 
       await waitFor(() => {
-        const addressBar = canvas.getByTestId('fake-address-bar');
+        const addressBar = canvas.queryByTestId('fake-address-bar');
         expect(addressBar).toHaveTextContent(/workspaces\/detail/i);
       });
     });

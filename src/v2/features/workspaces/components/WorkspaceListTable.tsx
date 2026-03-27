@@ -1,7 +1,7 @@
-import { ErrorState, PageHeader, SkeletonTableBody, SkeletonTableHead, WarningModal } from '@patternfly/react-component-groups';
+import { ErrorState, PageHeader, SkeletonTableBody, SkeletonTableHead } from '@patternfly/react-component-groups';
 import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
-import { ButtonVariant } from '@patternfly/react-core';
 import { Divider } from '@patternfly/react-core/dist/dynamic/components/Divider';
+import { DeleteWorkspaceModal } from './DeleteWorkspaceModal';
 import { EmptyState } from '@patternfly/react-core/dist/dynamic/components/EmptyState';
 import { EmptyStateBody } from '@patternfly/react-core/dist/dynamic/components/EmptyState';
 
@@ -42,15 +42,9 @@ interface WorkspaceListTableProps {
 
   /**
    * Generic Kessel permission check: (workspaceId, relation) → boolean.
-   * Used by canModify to map each action to its correct Kessel relation.
+   * Already includes workspace-type constraints (root → view-only, default → no move/delete).
    */
   hasPermission: (workspaceId: string, relation: WorkspaceRelation) => boolean;
-
-  /**
-   * Whether the user can edit at least one workspace.
-   * Used for enabling/disabling bulk actions like "Delete workspaces".
-   */
-  canEditAny: boolean;
 
   /**
    * Whether the user can create workspaces in at least one workspace.
@@ -60,11 +54,6 @@ interface WorkspaceListTableProps {
 
   children?: React.ReactNode;
 }
-
-const isValidType = (workspace: WorkspacesWorkspace, validTypes: string[]) => validTypes.includes(workspace.type ?? '');
-const isValidEditType = (workspace: WorkspacesWorkspace) => isValidType(workspace, ['default', 'standard']);
-const isValidMoveType = (workspace: WorkspacesWorkspace) => isValidType(workspace, ['standard']);
-const isValidDeleteType = (workspace: WorkspacesWorkspace) => isValidType(workspace, ['standard']);
 
 const mapWorkspacesToHierarchy = (workspaceData: WorkspacesWorkspace[]): WorkspaceWithChildren | undefined => {
   const idMap = new Map<string, WorkspaceWithChildren>();
@@ -145,7 +134,6 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
   onDeleteWorkspaces,
   onMoveWorkspace,
   hasPermission,
-  canEditAny,
   canCreateAny,
   children,
 }) => {
@@ -157,34 +145,11 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
 
   // Feature flags via custom hook (see WORKSPACE_FEATURE_FLAGS.md for complete documentation)
   // M3: RBAC detail pages with read-only role bindings
-  // M5: Master flag that enables all features (including bulk delete)
   const hasRbacDetailPages = useWorkspacesFlag('m3'); // M3+ or master flag
-  const hasAllFeatures = useWorkspacesFlag('m5'); // Master flag only
 
   const handleModalToggle = (workspacesToDelete: WorkspacesWorkspace[]) => {
     setCurrentWorkspaces(workspacesToDelete);
     setIsDeleteModalOpen(!isDeleteModalOpen);
-  };
-
-  /**
-   * Check if user can perform an action on a workspace.
-   * Maps each UI action to its correct Kessel relation, then applies workspace type constraints.
-   */
-  const canModify = (workspace: WorkspacesWorkspace, action: 'edit' | 'move' | 'delete' | 'create') => {
-    const workspaceId = workspace.id ?? '';
-
-    switch (action) {
-      case 'create':
-        return hasPermission(workspaceId, 'create') && isValidEditType(workspace);
-      case 'edit':
-        return hasPermission(workspaceId, 'edit') && isValidEditType(workspace);
-      case 'move':
-        return hasPermission(workspaceId, 'move') && isValidMoveType(workspace);
-      case 'delete':
-        return hasPermission(workspaceId, 'delete') && isValidDeleteType(workspace);
-      default:
-        return false;
-    }
   };
 
   const buildRows = React.useCallback(
@@ -219,24 +184,24 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
                     onClick: () => {
                       navigate(pathnames['edit-workspaces-list'].link(workspace.id ?? ''));
                     },
-                    isDisabled: !canModify(workspace, 'edit'),
+                    isDisabled: !hasPermission(workspace.id ?? '', 'edit'),
                   },
                   {
                     title: 'Create workspace',
                     onClick: () => navigate(pathnames['create-workspace'].link()),
-                    isDisabled: !canModify(workspace, 'create'),
+                    isDisabled: !hasPermission(workspace.id ?? '', 'create'),
                   },
                   {
                     title: 'Create subworkspace',
                     onClick: () => navigate(pathnames['create-workspace'].link()),
-                    isDisabled: !canModify(workspace, 'create'),
+                    isDisabled: !hasPermission(workspace.id ?? '', 'create'),
                   },
                   {
                     title: 'Move workspace',
                     onClick: () => {
                       onMoveWorkspace(workspace, '');
                     },
-                    isDisabled: !canModify(workspace, 'move'),
+                    isDisabled: !hasPermission(workspace.id ?? '', 'move'),
                   },
                   {
                     title: 'Manage integrations',
@@ -255,8 +220,8 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
                     onClick: () => {
                       handleModalToggle([workspace]);
                     },
-                    isDisabled: (workspace.children && workspace.children.length > 0) || !canModify(workspace, 'delete'),
-                    isDanger: !(workspace.children && workspace.children.length > 0) && canModify(workspace, 'delete'),
+                    isDisabled: (workspace.children && workspace.children.length > 0) || !hasPermission(workspace.id ?? '', 'delete'),
+                    isDanger: !(workspace.children && workspace.children.length > 0) && hasPermission(workspace.id ?? '', 'delete'),
                   },
                 ]}
               />
@@ -308,31 +273,15 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
       />
       <PageSection hasBodyWrapper={false}>
         {isDeleteModalOpen && (
-          <WarningModal
-            ouiaId={'remove-workspaces-modal'}
+          <DeleteWorkspaceModal
             isOpen={isDeleteModalOpen}
-            title={intl.formatMessage(messages.deleteWorkspaceModalHeader)}
-            confirmButtonLabel={intl.formatMessage(messages.delete)}
-            confirmButtonVariant={ButtonVariant.danger}
-            withCheckbox={true}
-            checkboxLabel={intl.formatMessage(messages.understandActionIrreversible)}
             onClose={() => setIsDeleteModalOpen(false)}
             onConfirm={async () => {
               await onDeleteWorkspaces(currentWorkspaces);
               setIsDeleteModalOpen(false);
             }}
-            cancelButtonLabel={intl.formatMessage(messages.cancel)}
-          >
-            <FormattedMessage
-              {...messages.deleteWorkspaceModalBody}
-              values={{
-                b: (text) => <b>{text}</b>,
-                count: currentWorkspaces.length,
-                plural: currentWorkspaces.length > 1 ? intl.formatMessage(messages.workspaces) : intl.formatMessage(messages.workspace),
-                name: currentWorkspaces[0]?.name,
-              }}
-            />
-          </WarningModal>
+            workspaces={currentWorkspaces}
+          />
         )}
         <DataView activeState={activeState}>
           <DataViewToolbar
@@ -350,16 +299,9 @@ export const WorkspaceListTable: React.FC<WorkspaceListTableProps> = ({
               />
             }
             actions={
-              <>
-                <Button variant="primary" onClick={() => navigate(pathnames['create-workspace'].link())} isDisabled={!canCreateAny}>
-                  {intl.formatMessage(messages.createWorkspace)}
-                </Button>
-                {hasAllFeatures && (
-                  <Button variant="secondary" onClick={() => handleModalToggle(workspaces)} isDisabled={!canEditAny}>
-                    {intl.formatMessage(messages.deleteWorkspacesAction)}
-                  </Button>
-                )}
-              </>
+              <Button variant="primary" onClick={() => navigate(pathnames['create-workspace'].link())} isDisabled={!canCreateAny}>
+                {intl.formatMessage(messages.createWorkspace)}
+              </Button>
             }
           />
           <DataViewTable

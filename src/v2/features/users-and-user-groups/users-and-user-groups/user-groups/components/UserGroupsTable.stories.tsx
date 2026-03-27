@@ -3,10 +3,17 @@ import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { DataViewEventsProvider } from '@patternfly/react-data-view';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expectLoadingVisible } from '../../../../../../test-utils/interactionHelpers';
 import { UserGroupsTable } from './UserGroupsTable';
 import { useTableState } from '../../../../../../shared/components/table-view/hooks/useTableState';
 import type { Group } from '../../../../../../v2/data/queries/groups';
+import { GROUP_ADMIN_DEFAULT, GROUP_SYSTEM_DEFAULT } from '../../../../../../shared/data/mocks/seed';
+import messages from '../../../../../../Messages';
 import { type SortableColumnId, columns as userGroupsColumns } from './useUserGroupsTableConfig';
+
+/** Matches `useGroupsQuery` select normalization (`messages.allUsers` / `messages.allOrgAdmins`). */
+const ALL_USERS_LABEL = messages.allUsers.defaultMessage;
+const ALL_ORG_ADMINS_LABEL = messages.allOrgAdmins.defaultMessage;
 
 // Mock group data for testing
 const createMockGroup = (id: string): Group => ({
@@ -42,13 +49,8 @@ const mockGroups: Group[] = [
     system: false,
   },
   {
-    ...createMockGroup('3'),
-    name: 'Platform Default Group',
-    description: 'Default platform group',
-    principalCount: 25,
-    roleCount: 1,
-    platform_default: true,
-    system: false,
+    ...GROUP_SYSTEM_DEFAULT,
+    principalCount: ALL_USERS_LABEL,
   },
   {
     ...createMockGroup('4'),
@@ -161,7 +163,7 @@ export const StandardView: Story = {
       // Verify group data appears in table
       await expect(canvas.findByText('Administrators')).resolves.toBeInTheDocument();
       await expect(canvas.findByText('Developers')).resolves.toBeInTheDocument();
-      await expect(canvas.findByText('Platform Default Group')).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument();
       await expect(canvas.findByText('System Group')).resolves.toBeInTheDocument();
 
       // Test column headers appear
@@ -197,9 +199,8 @@ export const LoadingState: Story = {
     await step('Verify', async () => {
       // Should show skeleton loading state
       await waitFor(
-        async () => {
-          const skeletonElements = canvasElement.querySelectorAll('[class*="skeleton"]');
-          await expect(skeletonElements.length).toBeGreaterThan(0);
+        () => {
+          expectLoadingVisible(canvasElement);
         },
         { timeout: 10000 },
       );
@@ -505,7 +506,7 @@ export const MixedGroupTypes: Story = {
 
       // Test that various group types are present and visible
       await expect(canvas.findByText('Administrators')).resolves.toBeInTheDocument(); // Regular
-      await expect(canvas.findByText('Platform Default Group')).resolves.toBeInTheDocument(); // Platform default
+      await expect(canvas.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument(); // Platform default
       await expect(canvas.findByText('System Group')).resolves.toBeInTheDocument(); // System
 
       // Test that system groups still have restricted actions
@@ -650,6 +651,39 @@ Perfect for testing filter state management and ensuring the clear filters butto
 
       // Verify filter was cleared
       await waitFor(() => expect(filterInput).toHaveValue(''));
+    });
+  },
+};
+
+export const DefaultGroupsCounts: Story = {
+  args: {
+    groups: [
+      {
+        ...GROUP_SYSTEM_DEFAULT,
+        principalCount: ALL_USERS_LABEL,
+      },
+      {
+        ...GROUP_ADMIN_DEFAULT,
+        principalCount: ALL_ORG_ADMINS_LABEL,
+      },
+    ],
+    totalCount: 2,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Default platform and admin groups show normalized user counts in the Users column (same strings as `useGroupsQuery` select).',
+      },
+    },
+  },
+  play: async ({ canvasElement, step }) => {
+    await step('Verify default group labels in Users column', async () => {
+      const canvas = within(canvasElement);
+      await expect(canvas.findByRole('grid')).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_SYSTEM_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(GROUP_ADMIN_DEFAULT.name)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_USERS_LABEL)).resolves.toBeInTheDocument();
+      await expect(canvas.findByText(ALL_ORG_ADMINS_LABEL)).resolves.toBeInTheDocument();
     });
   },
 };

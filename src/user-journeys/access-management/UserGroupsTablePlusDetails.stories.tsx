@@ -39,14 +39,14 @@ const meta = {
     permissions: KESSEL_PERMISSIONS.FULL_ADMIN,
     orgAdmin: true,
     'platform.rbac.common-auth-model': true,
-    'platform.rbac.workspaces-organization-management': true,
+    'platform.rbac.workspaces': true,
   },
   parameters: {
     ...createDynamicEnvironment({
       permissions: KESSEL_PERMISSIONS.FULL_ADMIN,
       orgAdmin: true,
       'platform.rbac.common-auth-model': true,
-      'platform.rbac.workspaces-organization-management': true,
+      'platform.rbac.workspaces': true,
     }),
     msw: {
       handlers: v2DefaultHandlers,
@@ -426,7 +426,7 @@ Tests the empty state matching \`static/mocks/User groups table plus details/Bas
         ...groupsHandlers([]),
         ...v2DefaultHandlers.filter((h) => {
           const path = h.info?.path?.toString() || '';
-          if (!path.includes('/api/rbac/v1/groups') && !path.includes('/api/rbac/v2/groups')) return true;
+          if (!path.includes('/api/rbac/v1/groups')) return true;
           if (path.includes('/principals/') || path.includes('/service-accounts/')) return true;
           return false;
         }),
@@ -447,7 +447,7 @@ Tests the empty state matching \`static/mocks/User groups table plus details/Bas
     await step('Wait for empty state', async () => {
       await waitFor(
         () => {
-          expect(canvas.getByText(/no user group found/i)).toBeInTheDocument();
+          expect(canvas.queryByText(/no user group found/i)).toBeInTheDocument();
         },
         { timeout: TEST_TIMEOUTS.ELEMENT_WAIT },
       );

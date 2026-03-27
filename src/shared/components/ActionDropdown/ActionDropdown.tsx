@@ -99,7 +99,12 @@ export const ActionDropdown: React.FC<ActionDropdownProps> = ({
       )}
       shouldFocusToggleOnSelect={shouldFocusToggleOnSelect}
       className={className}
-      popperProps={position ? { position } : undefined}
+      popperProps={{
+        position: position || 'right',
+        enableFlip: true,
+        appendTo: () => document.body,
+        flipBehavior: ['top', 'bottom', 'top-start', 'bottom-start'],
+      }}
       ouiaId={ouiaId}
     >
       <DropdownList>

@@ -181,6 +181,28 @@ export const groupsKeys = {
 };
 
 // ============================================================================
+// Private: normalize default group principalCount
+// ============================================================================
+
+const DEFAULT_GROUP_LABELS = {
+  allUsers: messages.allUsers.defaultMessage,
+  allOrgAdmins: messages.allOrgAdmins.defaultMessage,
+} as const;
+
+function normalizeDefaultGroupCount<T extends { platform_default?: boolean; admin_default?: boolean; principalCount?: number }>(group: T): T {
+  if (group.platform_default) return { ...group, principalCount: DEFAULT_GROUP_LABELS.allUsers };
+  if (group.admin_default) return { ...group, principalCount: DEFAULT_GROUP_LABELS.allOrgAdmins };
+  return group;
+}
+
+function normalizeGroupList(data: GroupsListResponse): GroupsListResponse {
+  return {
+    ...data,
+    data: data.data?.map((g) => normalizeDefaultGroupCount(g)),
+  };
+}
+
+// ============================================================================
 // Query Hooks
 // ============================================================================
 
@@ -220,7 +242,7 @@ export function useGroupsQuery(params: UseGroupsQueryParams = {}, options?: Quer
           username: params.username,
           excludeUsername: params.excludeUsername,
         });
-        return response.data as GroupsListResponse;
+        return normalizeGroupList(response.data as GroupsListResponse);
       },
       enabled: options?.enabled ?? true,
     },
@@ -244,12 +266,11 @@ export function useAdminGroupQuery(options?: { enabled?: boolean }): UseQueryRes
         limit: 1,
         adminDefault: true,
       });
-      // Extract the first admin_default group from the response
       const groups = (response.data as GroupsListResponse)?.data ?? [];
       const adminGroup = groups.find((group) => group.admin_default);
-      return adminGroup ?? null;
+      return adminGroup ? normalizeDefaultGroupCount(adminGroup) : null;
     },
-    staleTime: 5 * 60 * 1000, // Admin group rarely changes, cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
     enabled: options?.enabled ?? true,
   });
 }
@@ -273,7 +294,7 @@ export function useSystemGroupQuery(options?: { enabled?: boolean }): UseQueryRe
       // Extract the first platform_default group from the response
       const groups = (response.data as GroupsListResponse)?.data ?? [];
       const systemGroup = groups.find((group) => group.platform_default);
-      return systemGroup ?? null;
+      return systemGroup ? normalizeDefaultGroupCount(systemGroup) : null;
     },
     staleTime: 5 * 60 * 1000, // System group rarely changes, cache for 5 minutes
     enabled: options?.enabled ?? true,
@@ -294,7 +315,7 @@ export function useGroupQuery(id: string, options?: QueryOptions): UseQueryResul
       queryKey: groupsKeys.detail(id),
       queryFn: async (): Promise<GroupOut> => {
         const response = await groupsApi.getGroup({ uuid: id });
-        return response.data as GroupOut;
+        return normalizeDefaultGroupCount(response.data as GroupOut);
       },
       enabled: (options?.enabled ?? true) && !!id,
     },
@@ -878,12 +899,12 @@ interface AddServiceAccountsToGroupParams {
 }
 
 /**
- * Add service accounts to a group (V1 - stable API).
- * Uses the principals API with type: 'service-account'.
- * For use in features/groups (legacy groups management).
+ * Add service accounts to a group.
+ * Uses the stable V1 principals API with type: 'service-account'.
+ * There is no V2 groups API yet — groups use V1 APIs.
  * Uses injected services from ServiceContext - works in both browser and CLI.
  */
-export function useAddServiceAccountsToGroupMutationV1(options?: MutationOptions) {
+export function useAddServiceAccountsToGroupMutation(options?: MutationOptions) {
   const { axios, notify } = useAppServices();
   const groupsApi = createGroupsApi(axios);
   const queryClient = useMutationQueryClient(options?.queryClient);
@@ -891,10 +912,8 @@ export function useAddServiceAccountsToGroupMutationV1(options?: MutationOptions
 
   return useMutation({
     mutationFn: async ({ groupId, serviceAccounts }: AddServiceAccountsToGroupParams) => {
-      // Use the stable principals API with service-account type
-      // Note: The rbac-client GroupPrincipalIn type expects 'username' but for service accounts
-      // we need to send 'clientId' and 'type'. Using type assertion for this known API behavior.
-      const response = await groupsApi.addPrincipalToGroup({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GroupPrincipalInPrincipalsInner requires username but service accounts only have clientId
+      const response = await (groupsApi.addPrincipalToGroup as any)({
         uuid: groupId,
         groupPrincipalIn: {
           principals: serviceAccounts.map((clientId) => ({
@@ -918,52 +937,18 @@ export function useAddServiceAccountsToGroupMutationV1(options?: MutationOptions
   });
 }
 
-/**
- * Add service accounts to a group (V2 - guessed API).
- * GAP: Using guessed V2 API - POST /api/rbac/v2/groups/:uuid/service-accounts/
- * This API endpoint is not yet confirmed - this is an educated guess.
- * For use in access-management feature.
- * Uses injected services from ServiceContext - works in both browser and CLI.
- */
-export function useAddServiceAccountsToGroupMutation(options?: MutationOptions) {
-  const { axios, notify } = useAppServices();
-  const queryClient = useMutationQueryClient(options?.queryClient);
-  const intl = useIntl();
-
-  return useMutation({
-    mutationFn: async ({ groupId, serviceAccounts }: AddServiceAccountsToGroupParams) => {
-      // GAP: This endpoint is guessed - actual V2 API may differ
-      // Use axios for consistent behavior across environments
-      const response = await axios.post(`/api/rbac/v2/groups/${groupId}/service-accounts/`, {
-        service_accounts: serviceAccounts.map((clientId) => ({ clientId })),
-      });
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: groupsKeys.serviceAccounts(variables.groupId) });
-      queryClient.invalidateQueries({ queryKey: groupsKeys.lists() });
-      const multiple = variables.serviceAccounts.length > 1;
-      notify('success', intl.formatMessage(multiple ? messages.addGroupServiceAccountsSuccessTitle : messages.addGroupServiceAccountSuccessTitle));
-    },
-    onError: (_, variables) => {
-      const multiple = variables.serviceAccounts.length > 1;
-      notify('danger', intl.formatMessage(multiple ? messages.addGroupServiceAccountsErrorTitle : messages.addGroupServiceAccountErrorTitle));
-    },
-  });
-}
-
 interface RemoveServiceAccountsFromGroupParams {
   groupId: string;
   serviceAccounts: string[]; // clientIds
 }
 
 /**
- * Remove service accounts from a group (V1 - stable API).
- * Uses the principals API with comma-separated client IDs.
- * For use in features/groups (legacy groups management).
+ * Remove service accounts from a group.
+ * Uses the stable V1 principals API with comma-separated client IDs.
+ * There is no V2 groups API yet — groups use V1 APIs.
  * Uses injected services from ServiceContext - works in both browser and CLI.
  */
-export function useRemoveServiceAccountsFromGroupMutationV1(options?: MutationOptions) {
+export function useRemoveServiceAccountsFromGroupMutation(options?: MutationOptions) {
   const { axios, notify } = useAppServices();
   const groupsApi = createGroupsApi(axios);
   const queryClient = useMutationQueryClient(options?.queryClient);
@@ -971,50 +956,10 @@ export function useRemoveServiceAccountsFromGroupMutationV1(options?: MutationOp
 
   return useMutation({
     mutationFn: async ({ groupId, serviceAccounts }: RemoveServiceAccountsFromGroupParams) => {
-      // Use the stable principals API - service account client IDs are passed as comma-separated
       await groupsApi.deletePrincipalFromGroup({
         uuid: groupId,
         serviceAccounts: serviceAccounts.join(','),
       });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: groupsKeys.serviceAccounts(variables.groupId) });
-      queryClient.invalidateQueries({ queryKey: groupsKeys.lists() });
-      const multiple = variables.serviceAccounts.length > 1;
-      notify(
-        'success',
-        intl.formatMessage(multiple ? messages.removeGroupServiceAccountsSuccessTitle : messages.removeGroupServiceAccountSuccessTitle),
-      );
-    },
-    onError: (_, variables) => {
-      const multiple = variables.serviceAccounts.length > 1;
-      notify('danger', intl.formatMessage(multiple ? messages.removeGroupServiceAccountsErrorTitle : messages.removeGroupServiceAccountErrorTitle));
-    },
-  });
-}
-
-/**
- * Remove service accounts from a group (V2 - guessed API).
- * GAP: Using guessed V2 API - DELETE /api/rbac/v2/groups/:uuid/service-accounts/
- * This API endpoint is not yet confirmed - this is an educated guess.
- * For use in access-management feature.
- * Uses injected services from ServiceContext - works in both browser and CLI.
- */
-export function useRemoveServiceAccountsFromGroupMutation(options?: MutationOptions) {
-  const { axios, notify } = useAppServices();
-  const queryClient = useMutationQueryClient(options?.queryClient);
-  const intl = useIntl();
-
-  return useMutation({
-    mutationFn: async ({ groupId, serviceAccounts }: RemoveServiceAccountsFromGroupParams) => {
-      // GAP: This endpoint is guessed - actual V2 API may differ
-      // Use axios for consistent behavior across environments
-      const response = await axios.delete(`/api/rbac/v2/groups/${groupId}/service-accounts/`, {
-        data: {
-          service_accounts: serviceAccounts.map((clientId) => ({ clientId })),
-        },
-      });
-      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: groupsKeys.serviceAccounts(variables.groupId) });

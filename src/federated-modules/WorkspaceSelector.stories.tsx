@@ -12,6 +12,7 @@ import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import WorkspaceSelector, { type WorkspaceSelectorProps } from './WorkspaceSelector';
 import { workspacesHandlers } from '../v2/data/mocks/workspaces.handlers';
+import { queryTreeViewToggle } from '../test-utils/interactionHelpers';
 
 // Workspace data these stories expect — different from the shared DEFAULT_WORKSPACES
 const selectorWorkspaces = [
@@ -73,7 +74,7 @@ async function openSelector(canvasElement: HTMLElement) {
 
 /** Expand the root tree node (clicks the first toggle button in the portal). */
 async function expandRootNode() {
-  const expandButton = document.body.querySelector('.pf-v6-c-tree-view__node-toggle') as HTMLButtonElement | null;
+  const expandButton = queryTreeViewToggle(document.body);
   if (expandButton) {
     await userEvent.click(expandButton);
   }
@@ -269,11 +270,13 @@ export const FilterByCreatePermission: Story = {
     requiredPermission: 'create',
   },
   parameters: {
+    // Only workspace-2 (standard) has create permission; root can never have create
+    // due to type constraints in useWorkspacePermissions.
     workspacePermissions: {
       view: ALL_WORKSPACE_IDS,
       edit: ALL_WORKSPACE_IDS,
       delete: [],
-      create: ['workspace-1'],
+      create: ['workspace-2'],
       move: [],
     },
     docs: {
@@ -281,8 +284,10 @@ export const FilterByCreatePermission: Story = {
         story: `Demonstrates \`requiredPermission="create"\` – the primary use case for
 "choose where to create a new workspace" flows.
 
-Only **Production Environment** (root) has the \`create\` permission.
-Child workspaces are visible but **dimmed and non-selectable**, preserving the hierarchy.
+Only **Web Services** (standard type) has the \`create\` permission.
+Root and other workspaces are visible but **dimmed and non-selectable**, preserving the hierarchy.
+
+Note: Root-type workspaces can never have \`create\` due to type constraints enforced by \`useWorkspacePermissions\`.
 
 \`\`\`tsx
 <AsyncComponent
@@ -303,14 +308,14 @@ Child workspaces are visible but **dimmed and non-selectable**, preserving the h
 
     await expandRootNode();
 
-    // Children should be disabled
-    await expectDisabled('Web Services');
+    // Root should be disabled (root type can never have create)
+    await expectDisabled('Production Environment');
 
-    // Click disabled child – onSelect should NOT fire
-    await clickAndExpectNoSelect('Web Services', args.onSelect as ReturnType<typeof fn>);
+    // Click disabled root – onSelect should NOT fire
+    await clickAndExpectNoSelect('Production Environment', args.onSelect as ReturnType<typeof fn>);
 
-    // Click root workspace – onSelect SHOULD fire
-    await clickAndExpectSelect('Production Environment', args.onSelect as ReturnType<typeof fn>, 'workspace-1', 'Production Environment');
+    // Click Web Services (standard, has create) – onSelect SHOULD fire
+    await clickAndExpectSelect('Web Services', args.onSelect as ReturnType<typeof fn>, 'workspace-2', 'Web Services');
   },
 };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react-webpack5';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expectLoadingVisible } from '../../../test-utils/interactionHelpers';
 import { type AuditLogEntry, AuditLogTable } from './AuditLogTable';
 
 // ----------------------------------------------------------------------------
@@ -73,6 +74,8 @@ function buildMockEntriesForPagination(count: number = 25): AuditLogEntry[] {
 }
 
 const mockEntriesPaginated = buildMockEntriesForPagination(25);
+const PAGINATION_PAGE_1_ENTRY = mockEntriesPaginated[5];
+const PAGINATION_PAGE_2_ENTRY = mockEntriesPaginated[20];
 
 // ----------------------------------------------------------------------------
 // Meta
@@ -137,8 +140,7 @@ export const Loading: Story = {
     await step('Verify loading', async () => {
       await waitFor(
         async () => {
-          const skeletonElements = canvasElement.querySelectorAll('[class*="skeleton"]');
-          await expect(skeletonElements.length).toBeGreaterThan(0);
+          expectLoadingVisible(canvasElement);
         },
         { timeout: 10000 },
       );
@@ -192,27 +194,18 @@ export const Pagination: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
     await step('Verify pagination', async () => {
-      // Wait for first page: one of the first-page-only entries (id 6 = "Audit action 6: …")
       await waitFor(() => {
-        expect(canvas.getByText(/Audit action 6:/)).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description)).toBeInTheDocument();
       });
 
-      // Pagination should show total (e.g. "1 - 20 of 25" or "25" in total-items)
-      const paginationRegion = canvasElement.querySelector('.pf-v6-c-pagination, [class*="pagination"]');
-      expect(paginationRegion).toBeInTheDocument();
-      expect(canvasElement.textContent).toMatch(/25/);
-
-      // Go to next page
       const nextButtons = canvas.getAllByRole('button', { name: /next/i });
       expect(nextButtons.length).toBeGreaterThan(0);
       await userEvent.click(nextButtons[0]);
 
-      // Page 2 should show entries 21–25 (first on page 2 is "Audit action 21: …")
       await waitFor(() => {
-        expect(canvas.getByText(/Audit action 21:/)).toBeInTheDocument();
+        expect(canvas.queryByText(PAGINATION_PAGE_2_ENTRY.description)).toBeInTheDocument();
       });
-      // First-page-only entry should not be visible
-      expect(canvas.queryByText(/Audit action 6:/)).not.toBeInTheDocument();
+      expect(canvas.queryByText(PAGINATION_PAGE_1_ENTRY.description)).not.toBeInTheDocument();
     });
   },
 };

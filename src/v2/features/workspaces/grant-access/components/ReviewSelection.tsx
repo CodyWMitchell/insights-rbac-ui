@@ -8,13 +8,16 @@ import { useGroupsQuery } from '../../../../../v2/data/queries/groups';
 import { useAllRolesV2Query } from '../../../../data/queries/roles';
 import messages from '../../../../../Messages';
 
-const ReviewSelection: React.FC = () => {
+const ReviewSelection: React.FC<{ workspaceId?: string; resourceType?: string }> = ({ workspaceId, resourceType }) => {
   const intl = useIntl();
   const formOptions = useFormApi();
   const { values } = formOptions.getState();
 
   const { data: groupsData } = useGroupsQuery({ limit: 1000 });
-  const { data: roles = [] } = useAllRolesV2Query();
+  const { data: roles = [] } = useAllRolesV2Query({
+    resourceType,
+    resourceId: workspaceId,
+  });
 
   const groups = groupsData?.data ?? [];
 
