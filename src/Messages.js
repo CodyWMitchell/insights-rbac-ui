@@ -104,11 +104,6 @@ export default defineMessages({
     description: 'Invite users form emails field error message is one email address is not valid.',
     defaultMessage: 'Some of the email addresses you provided are not valid',
   },
-  inviteUsersMessageTitle: {
-    id: 'inviteUsersMessageTitle',
-    description: 'Message to be sent to each email',
-    defaultMessage: 'Send a message with the invite',
-  },
   inviteUsersCustomerPortalPermissions: {
     id: 'inviteUsersCustomerPortalPermissions',
     description: 'Customer portal permissions title',

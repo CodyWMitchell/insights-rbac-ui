@@ -189,7 +189,6 @@ test.describe('User Management', () => {
       // Fill and submit invite form with test email
       const testEmail = `test-invite-${Date.now()}@example.invalid`;
       await usersPage.inviteUsers([testEmail], {
-        message: 'E2E test invite',
         makeOrgAdmin: false,
       });
 

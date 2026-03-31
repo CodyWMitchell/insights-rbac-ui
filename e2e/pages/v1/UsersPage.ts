@@ -171,7 +171,7 @@ export class UsersPage {
     await expect(this.page.getByRole('dialog')).toBeVisible({ timeout: E2E_TIMEOUTS.DIALOG_CONTENT });
   }
 
-  async fillInviteForm(emails: string[], options?: { message?: string; makeOrgAdmin?: boolean }): Promise<void> {
+  async fillInviteForm(emails: string[], options?: { makeOrgAdmin?: boolean }): Promise<void> {
     const modal = this.page.getByRole('dialog').first();
     await expect(modal).toBeVisible({ timeout: E2E_TIMEOUTS.DIALOG_CONTENT });
 
@@ -181,12 +181,6 @@ export class UsersPage {
     // Fill emails
     const emailInput = modal.getByRole('textbox', { name: /enter the e-mail addresses/i });
     await emailInput.fill(emails.join(', '));
-
-    // Optional: Add message
-    if (options?.message) {
-      const messageInput = modal.getByRole('textbox', { name: /send a message/i });
-      await messageInput.fill(options.message);
-    }
 
     // Optional: Make org admin
     if (options?.makeOrgAdmin) {
@@ -203,7 +197,7 @@ export class UsersPage {
     await expect(modal).not.toBeVisible({ timeout: E2E_TIMEOUTS.TABLE_DATA });
   }
 
-  async inviteUsers(emails: string[], options?: { message?: string; makeOrgAdmin?: boolean }): Promise<void> {
+  async inviteUsers(emails: string[], options?: { makeOrgAdmin?: boolean }): Promise<void> {
     await this.openInviteModal();
     await this.fillInviteForm(emails, options);
     await this.submitInvite();

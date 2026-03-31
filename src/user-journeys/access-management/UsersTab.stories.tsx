@@ -562,7 +562,6 @@ Tests inviting new users to the organization from the Access Management Users ta
         timeout: TEST_TIMEOUTS.POST_MUTATION_REFRESH,
         waitUntil: (dlg) => {
           expect(dlg.queryByRole('textbox', { name: /enter the e-mail addresses/i })).toBeInTheDocument();
-          expect(dlg.queryByRole('textbox', { name: /send a message with the invite/i })).toBeInTheDocument();
         },
       });
     });
@@ -573,15 +572,6 @@ Tests inviting new users to the organization from the Access Management Users ta
         user,
         () => modal.getByRole('textbox', { name: /enter the e-mail addresses/i }) as HTMLInputElement,
         'newuser1@example.com, newuser2@example.com',
-      );
-    });
-
-    await step('Fill message', async () => {
-      const modal = await waitForModal();
-      await clearAndType(
-        user,
-        () => modal.getByRole('textbox', { name: /send a message with the invite/i }) as HTMLTextAreaElement,
-        'Welcome to our organization!',
       );
     });
 

@@ -195,16 +195,9 @@ export class UsersPage {
   /**
    * Fill in the invite form
    */
-  async fillInviteForm(options: { email: string; message?: string }): Promise<void> {
+  async fillInviteForm(options: { email: string }): Promise<void> {
     const emailInput = this.page.getByRole('textbox', { name: /enter the e-mail addresses/i });
     await emailInput.fill(options.email);
-
-    if (options.message) {
-      const messageInput = this.page.getByRole('textbox', { name: /send a message with the invite/i });
-      if (await messageInput.isVisible()) {
-        await messageInput.fill(options.message);
-      }
-    }
   }
 
   /**
@@ -221,9 +214,9 @@ export class UsersPage {
   /**
    * Complete invite flow: open modal, fill form, submit
    */
-  async inviteUser(email: string, message?: string): Promise<void> {
+  async inviteUser(email: string): Promise<void> {
     await this.openInviteModal();
-    await this.fillInviteForm({ email, message });
+    await this.fillInviteForm({ email });
     await this.submitInvite();
   }
 }

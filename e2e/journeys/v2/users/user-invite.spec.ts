@@ -95,7 +95,6 @@ test.describe('User Invite', () => {
       await usersPage.openInviteModal();
       await usersPage.fillInviteForm({
         email: 'testuser@example.com',
-        message: 'Welcome to our organization!',
       });
       await usersPage.submitInvite();
 

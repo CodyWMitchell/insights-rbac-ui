@@ -371,7 +371,6 @@ export function useUpdateUserOrgAdminMutation(options?: MutationOptions) {
 interface InviteUsersParams {
   emails: string[];
   isAdmin?: boolean;
-  message?: string;
   portal_manage_cases?: boolean;
   portal_download?: boolean;
   portal_manage_subscriptions?: string;
@@ -396,16 +395,7 @@ export function useInviteUsersMutation(options?: MutationOptions) {
   const queryClient = useMutationQueryClient(options?.queryClient);
 
   return useMutation({
-    mutationFn: async ({
-      emails,
-      isAdmin,
-      message,
-      portal_manage_cases,
-      portal_download,
-      portal_manage_subscriptions,
-      config,
-      itless,
-    }: InviteUsersParams) => {
+    mutationFn: async ({ emails, isAdmin, portal_manage_cases, portal_download, portal_manage_subscriptions, config, itless }: InviteUsersParams) => {
       if (!config.token) {
         throw new Error('Token is required. Obtain it using useChrome().auth.getToken() before calling this mutation.');
       }
@@ -418,7 +408,6 @@ export function useInviteUsersMutation(options?: MutationOptions) {
           body: JSON.stringify({
             emails,
             localeCode: 'en',
-            ...(message && { message }),
             ...(isAdmin && { roles: ['organization_administrator'] }),
             ...(portal_manage_cases !== undefined && { portal_manage_cases }),
             ...(portal_download !== undefined && { portal_download }),
@@ -445,7 +434,6 @@ export function useInviteUsersMutation(options?: MutationOptions) {
         body: JSON.stringify({
           emails,
           isAdmin,
-          message,
         }),
       });
 
