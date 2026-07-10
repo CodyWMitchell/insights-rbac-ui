@@ -56,6 +56,7 @@ export function useWorkspacesQuery(params: WorkspacesListParams = {}, options?: 
           type: params.type ?? 'all',
           name: params.name,
           orderBy: params.orderBy,
+          withAncestry: true,
         });
         return response.data;
       },
