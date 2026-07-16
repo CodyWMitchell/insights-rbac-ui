@@ -24,6 +24,10 @@ interface CustomDataListItemProps {
   isExpanded?: boolean;
 }
 
+const contentStyle: React.CSSProperties = {
+  '--pf-v6-c-data-list__expandable-content--BackgroundColor': 'transparent',
+} as React.CSSProperties;
+
 const CustomDataListItem: React.FC<CustomDataListItemProps> = ({ icon, heading, linkTitle, linkTarget, expandableContent, isExpanded }) => {
   const [expanded, setExpanded] = React.useState(isExpanded || false);
 
@@ -61,7 +65,7 @@ const CustomDataListItem: React.FC<CustomDataListItemProps> = ({ icon, heading, 
             </DataListAction>
           )}
         </DataListItemRow>
-        <DataListContent aria-label={`${heading} - Detailed Explanation`} id="expand1" isHidden={!expanded}>
+        <DataListContent aria-label={`${heading} - Detailed Explanation`} id="expand1" isHidden={!expanded} style={contentStyle}>
           {expandableContent}
         </DataListContent>
       </DataListItem>
